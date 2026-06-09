@@ -1,0 +1,2457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0b0b0f">
+    <title>URBEX — Spots</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --bg: #0b0b0f;
+            --bg2: #131318;
+            --bg3: #1b1b22;
+            --border: #262630;
+            --border-hover: #3a3a48;
+            --accent: #e8a840;
+            --accent-glow: rgba(232, 168, 64, 0.25);
+            --accent-soft: rgba(232, 168, 64, 0.08);
+            --accent2: #d4782f;
+            --text: #e8e8ec;
+            --text2: #90909b;
+            --text3: #5e5e6a;
+            --danger: #e05555;
+            --danger-soft: rgba(224, 85, 85, 0.08);
+            --success: #4aaf6e;
+            --card: #14141b;
+            --card-hover: #191922;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+            --radius-sm: 8px;
+            --radius: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --fd: 'Bebas Neue', sans-serif;
+            --fb: 'DM Sans', sans-serif;
+            --fm: 'DM Mono', monospace;
+            --tr-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            --tr: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --tr-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="light"] {
+            --bg: #f5f5f2;
+            --bg2: #ffffff;
+            --bg3: #eaeae5;
+            --border: #dcdcd5;
+            --border-hover: #c0c0b8;
+            --accent: #c88720;
+            --accent-glow: rgba(200, 135, 32, 0.15);
+            --accent-soft: rgba(200, 135, 32, 0.06);
+            --accent2: #a86818;
+            --text: #1a1a1f;
+            --text2: #6b6b73;
+            --text3: #9a9aa0;
+            --danger: #c94040;
+            --danger-soft: rgba(201, 64, 64, 0.06);
+            --success: #3a8f5a;
+            --card: #ffffff;
+            --card-hover: #fafaf8;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        html,
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--fb);
+            min-height: 100vh;
+            min-height: 100dvh;
+            transition: background var(--tr), color var(--tr);
+            overflow-x: hidden;
+        }
+
+        ::-webkit-scrollbar {
+            width: 3px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-hover);
+        }
+
+        .screen {
+            display: none;
+            min-height: 100vh;
+            min-height: 100dvh;
+            animation: fadeSlideIn 0.35s ease both;
+        }
+        .screen.active {
+            display: block;
+        }
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        @keyframes fadeSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.35;
+            }
+        }
+        @keyframes dotPulse {
+            0%,
+            80%,
+            100% {
+                transform: scale(0.4);
+                opacity: 0.25;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        @keyframes ripple {
+            0% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            100% {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+        @keyframes cardEnter {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes shimmer {
+            0% {
+                background-position: -200% 0;
+            }
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        /* LOADER */
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            flex-direction: column;
+            gap: 18px;
+            transition: opacity 0.5s ease;
+        }
+        #loader.out {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .ll {
+            font-family: var(--fd);
+            font-size: 58px;
+            letter-spacing: 6px;
+            animation: pulse 1.6s ease-in-out infinite;
+            user-select: none;
+        }
+        .ll span {
+            color: var(--accent);
+        }
+        .dots {
+            display: flex;
+            gap: 7px;
+        }
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: dotPulse 1.3s ease-in-out infinite;
+        }
+        .dot:nth-child(2) {
+            animation-delay: 0.18s;
+        }
+        .dot:nth-child(3) {
+            animation-delay: 0.36s;
+        }
+
+        /* TOAST */
+        #toast {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%) translateY(120px);
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 13px 24px;
+            border-radius: 28px;
+            font-family: var(--fm);
+            font-size: 11px;
+            letter-spacing: 1px;
+            z-index: 8888;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            white-space: nowrap;
+            pointer-events: none;
+            box-shadow: var(--shadow-lg);
+        }
+        #toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        #toast.ok {
+            border-color: var(--success);
+            color: var(--success);
+            background: rgba(74, 175, 110, 0.08);
+        }
+        #toast.err {
+            border-color: var(--danger);
+            color: var(--danger);
+            background: var(--danger-soft);
+        }
+
+        /* HEADER */
+        .hdr {
+            position: sticky;
+            top: 0;
+            z-index: 500;
+            background: rgba(11, 11, 15, 0.88);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            height: 54px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            transition: background var(--tr), border-color var(--tr);
+        }
+        [data-theme="light"] .hdr {
+            background: rgba(245, 245, 242, 0.9);
+        }
+        .hdr-logo {
+            font-family: var(--fd);
+            font-size: 24px;
+            letter-spacing: 2.5px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 1px;
+        }
+        .hdr-logo span {
+            color: var(--accent);
+        }
+        .hdr-r {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .hbtn {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            color: var(--text2);
+            padding: 7px 13px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-family: var(--fm);
+            cursor: pointer;
+            letter-spacing: 1.5px;
+            transition: all var(--tr-fast);
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+        .hbtn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+        .hbtn:active {
+            transform: scale(0.96);
+            transition: transform 0.08s ease;
+        }
+        .hico {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            color: var(--text2);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--tr-fast);
+            flex-shrink: 0;
+        }
+        .hico:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+        .hico:active {
+            transform: scale(0.92);
+            transition: transform 0.08s ease;
+        }
+        .fab {
+            background: var(--accent);
+            border: none;
+            color: #0b0b0f;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            font-size: 22px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 400;
+            transition: all var(--tr-fast);
+            box-shadow: 0 2px 12px var(--accent-glow);
+            flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .fab:hover {
+            transform: scale(1.06);
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+        .fab:active {
+            transform: scale(0.93);
+            transition: transform 0.08s ease;
+        }
+
+        /* TABS */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            padding: 8px 12px;
+            background: var(--bg);
+            position: sticky;
+            top: 54px;
+            z-index: 399;
+            border-bottom: 1px solid var(--border);
+        }
+        .tab {
+            flex: 1;
+            padding: 10px 0;
+            font-family: var(--fm);
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-align: center;
+            color: var(--text3);
+            cursor: pointer;
+            border-radius: 20px;
+            transition: all var(--tr-fast);
+            background: transparent;
+            border: 1px solid transparent;
+            position: relative;
+        }
+        .tab.active {
+            color: var(--accent);
+            background: var(--accent-soft);
+            border-color: rgba(232, 168, 64, 0.2);
+            font-weight: 500;
+        }
+        .tab:hover:not(.active) {
+            color: var(--text);
+            background: var(--bg2);
+        }
+
+        /* LOGIN */
+        #screen-login {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding: 28px;
+            background: var(--bg);
+            position: relative;
+            overflow: hidden;
+        }
+        #screen-login.active {
+            display: flex;
+        }
+        .lglow {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse 50% 35% at 70% 20%, rgba(232, 168, 64, 0.08) 0%, transparent 55%),
+                radial-gradient(ellipse 35% 50% at 25% 70%, rgba(212, 120, 47, 0.06) 0%, transparent 55%),
+                radial-gradient(ellipse 40% 40% at 60% 80%, rgba(224, 85, 85, 0.04) 0%, transparent 55%);
+            pointer-events: none;
+        }
+        .lbox {
+            position: relative;
+            width: 100%;
+            max-width: 380px;
+            animation: fadeSlideIn 0.5s ease both;
+        }
+        .llogo {
+            font-family: var(--fd);
+            font-size: 72px;
+            line-height: 0.9;
+            margin-bottom: 4px;
+            letter-spacing: 3px;
+        }
+        .llogo span {
+            color: var(--accent);
+        }
+        .lsub {
+            font-family: var(--fm);
+            font-size: 10px;
+            color: var(--text2);
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            margin-bottom: 42px;
+            border-left: 2px solid var(--accent);
+            padding-left: 12px;
+            line-height: 1.5;
+        }
+        .llbl {
+            font-family: var(--fm);
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text2);
+            margin-bottom: 8px;
+        }
+        .linp {
+            width: 100%;
+            background: var(--bg2);
+            border: 2px solid var(--border);
+            color: var(--text);
+            padding: 14px 16px;
+            border-radius: var(--radius);
+            font-size: 16px;
+            font-family: var(--fb);
+            outline: none;
+            transition: all var(--tr-fast);
+            margin-bottom: 12px;
+            letter-spacing: 2px;
+        }
+        .linp:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-soft);
+        }
+        .lbtn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #0b0b0f;
+            border: none;
+            padding: 15px;
+            border-radius: var(--radius);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            cursor: pointer;
+            font-family: var(--fm);
+            transition: all var(--tr-fast);
+            box-shadow: 0 4px 18px var(--accent-glow);
+            position: relative;
+            overflow: hidden;
+        }
+        .lbtn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px var(--accent-glow);
+        }
+        .lbtn:active {
+            transform: scale(0.97);
+            transition: transform 0.08s ease;
+        }
+        .lbtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .lerr {
+            margin-top: 10px;
+            color: var(--danger);
+            font-size: 12px;
+            font-family: var(--fm);
+            display: none;
+            text-align: center;
+        }
+
+        /* SEARCH BAR */
+        .search-wrap {
+            padding: 10px 16px;
+            max-width: 700px;
+            margin: 0 auto;
+            position: sticky;
+            top: 104px;
+            z-index: 300;
+            background: var(--bg);
+        }
+        .sbar {
+            width: 100%;
+            background: var(--bg2);
+            border: 2px solid var(--border);
+            color: var(--text);
+            padding: 11px 16px;
+            border-radius: 24px;
+            font-size: 14px;
+            font-family: var(--fb);
+            outline: none;
+            transition: all var(--tr-fast);
+            letter-spacing: 0.5px;
+        }
+        .sbar:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-soft);
+        }
+        .sbar::placeholder {
+            color: var(--text3);
+        }
+
+        /* SORT / FILTER PILLS */
+        .filter-row {
+            display: flex;
+            gap: 7px;
+            padding: 4px 16px 10px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            max-width: 700px;
+            margin: 0 auto;
+            flex-wrap: nowrap;
+        }
+        .filter-row::-webkit-scrollbar {
+            display: none;
+        }
+        .sort-select {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-family: var(--fm);
+            letter-spacing: 1px;
+            outline: none;
+            cursor: pointer;
+            transition: all var(--tr-fast);
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2390909b' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+            flex-shrink: 0;
+        }
+        .sort-select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
+        .sort-select option {
+            background: var(--bg2);
+            color: var(--text);
+        }
+
+        /* PAGE */
+        .page {
+            padding: 16px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .pmeta {
+            font-family: var(--fm);
+            font-size: 10px;
+            color: var(--text2);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* SPOT CARD */
+        .spot-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin-bottom: 10px;
+            transition: all var(--tr);
+            display: flex;
+            flex-direction: column;
+            animation: cardEnter 0.4s ease both;
+            box-shadow: var(--shadow-sm);
+            position: relative;
+        }
+        .spot-card.visited {
+            opacity: 0.55;
+            filter: grayscale(0.3);
+        }
+        .spot-card.visited:hover {
+            opacity: 0.75;
+            filter: grayscale(0.1);
+        }
+        .spot-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+            background: var(--card-hover);
+        }
+        .spot-card:active {
+            transform: scale(0.985);
+            transition: transform 0.08s ease;
+        }
+        .spot-card.worth-it-highlight {
+            border-left: 3px solid var(--accent);
+        }
+
+        .card-top {
+            display: flex;
+            align-items: stretch;
+            cursor: pointer;
+            gap: 0;
+        }
+        .sthumb {
+            width: 100px;
+            min-height: 100px;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: var(--bg3);
+            border-radius: var(--radius-lg) 0 0 0;
+        }
+        .snothumb {
+            width: 100px;
+            min-height: 100px;
+            flex-shrink: 0;
+            background: var(--bg3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--border);
+            font-size: 28px;
+            border-radius: var(--radius-lg) 0 0 0;
+        }
+        .sbody {
+            flex: 1;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 4px;
+            min-width: 0;
+        }
+        .sname {
+            font-family: var(--fd);
+            font-size: 20px;
+            letter-spacing: 1.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.1;
+        }
+        .smeta {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .badge {
+            font-family: var(--fm);
+            font-size: 9px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .b-easy {
+            background: rgba(74, 175, 110, 0.1);
+            color: #4aaf6e;
+            border: 1px solid rgba(74, 175, 110, 0.2);
+        }
+        .b-medium {
+            background: rgba(232, 168, 64, 0.1);
+            color: #e8a840;
+            border: 1px solid rgba(232, 168, 64, 0.2);
+        }
+        .b-hard {
+            background: rgba(224, 85, 85, 0.1);
+            color: #e05555;
+            border: 1px solid rgba(224, 85, 85, 0.2);
+        }
+        .b-unknown {
+            background: rgba(144, 144, 155, 0.08);
+            color: #90909b;
+            border: 1px solid rgba(144, 144, 155, 0.15);
+        }
+        .b-visited {
+            background: rgba(144, 144, 155, 0.08);
+            color: #90909b;
+            border: 1px solid rgba(144, 144, 155, 0.15);
+        }
+        .haz {
+            font-family: var(--fm);
+            font-size: 9px;
+            color: var(--danger);
+            letter-spacing: 0.5px;
+            background: var(--danger-soft);
+            padding: 3px 7px;
+            border-radius: 8px;
+        }
+        .dist {
+            font-family: var(--fm);
+            font-size: 9px;
+            color: var(--text2);
+            letter-spacing: 0.5px;
+        }
+        .sarrow {
+            color: var(--border);
+            font-size: 20px;
+            align-self: center;
+            margin-right: 10px;
+            transition: all var(--tr-fast);
+            flex-shrink: 0;
+            opacity: 0.5;
+        }
+        .spot-card:hover .sarrow {
+            color: var(--accent);
+            opacity: 1;
+            transform: translateX(3px);
+        }
+
+        /* CARD ACTIONS ROW */
+        .card-actions {
+            display: flex;
+            border-top: 1px solid var(--border);
+            gap: 0;
+        }
+        .ca-btn {
+            flex: 1;
+            padding: 10px 0;
+            font-family: var(--fm);
+            font-size: 9px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: var(--text2);
+            transition: all var(--tr-fast);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            position: relative;
+        }
+        .ca-btn:hover {
+            color: var(--text);
+            background: var(--bg3);
+        }
+        .ca-btn.visited-on {
+            color: var(--success);
+        }
+        .ca-btn+.ca-btn {
+            border-left: 1px solid var(--border);
+        }
+
+        .empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text2);
+        }
+        .empty-t {
+            font-family: var(--fd);
+            font-size: 40px;
+            letter-spacing: 2px;
+            color: var(--border);
+            margin-bottom: 6px;
+        }
+        .empty-p {
+            font-size: 13px;
+            color: var(--text3);
+        }
+
+        /* MAP */
+        #map-tab {
+            display: none;
+            height: calc(100vh - 110px);
+            height: calc(100dvh - 110px);
+        }
+        #map-tab.active {
+            display: block;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            border-radius: 0;
+        }
+        .leaflet-popup-content-wrapper {
+            background: var(--card) !important;
+            color: var(--text) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius-lg) !important;
+            box-shadow: var(--shadow-lg) !important;
+            font-family: var(--fb) !important;
+        }
+        .leaflet-popup-content {
+            margin: 10px 14px !important;
+            font-family: var(--fb) !important;
+        }
+        .leaflet-popup-tip {
+            background: var(--card) !important;
+        }
+        .mpname {
+            font-family: var(--fd);
+            font-size: 18px;
+            letter-spacing: 1.5px;
+            margin-bottom: 6px;
+        }
+        .mpbtns {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .mpbtn {
+            flex: 1;
+            padding: 7px 10px;
+            border-radius: 16px;
+            font-family: var(--fm);
+            font-size: 9px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            border: none;
+            font-weight: 600;
+            text-align: center;
+            transition: all var(--tr-fast);
+        }
+        .mpbtn-view {
+            background: var(--accent);
+            color: #0b0b0f;
+        }
+        .mpbtn-view:hover {
+            opacity: 0.85;
+        }
+        .mpbtn-maps {
+            background: var(--bg3);
+            color: var(--text2);
+            border: 1px solid var(--border);
+        }
+        .mpbtn-maps:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* DETAIL */
+        .back-row {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px 0;
+            max-width: 700px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .back-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            color: var(--text2);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-family: var(--fm);
+            font-size: 10px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all var(--tr-fast);
+        }
+        .back-pill:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+        .detail-hero {
+            width: 100%;
+            height: 260px;
+            object-fit: cover;
+            border-radius: var(--radius-lg);
+            margin-bottom: 18px;
+            background: var(--bg3);
+            display: block;
+            box-shadow: var(--shadow-md);
+        }
+        .dtitle {
+            font-family: var(--fd);
+            font-size: 44px;
+            letter-spacing: 2px;
+            line-height: 0.95;
+            margin-bottom: 10px;
+        }
+        .ddesc {
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text2);
+            margin-bottom: 22px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .sec {
+            font-family: var(--fm);
+            font-size: 9px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text3);
+            margin-bottom: 8px;
+            margin-top: 20px;
+        }
+        .clnk {
+            font-family: var(--fm);
+            font-size: 12px;
+            color: var(--accent);
+            background: var(--accent-soft);
+            border: 1px solid rgba(232, 168, 64, 0.18);
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all var(--tr-fast);
+            word-break: break-all;
+        }
+        .clnk:hover {
+            background: rgba(232, 168, 64, 0.14);
+            border-color: var(--accent);
+        }
+        .fwrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            margin-top: 4px;
+        }
+        .fp {
+            padding: 7px 13px;
+            border-radius: 16px;
+            font-family: var(--fm);
+            font-size: 9px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-weight: 500;
+            transition: all var(--tr-fast);
+        }
+        .fp.on {
+            background: var(--accent);
+            color: #0b0b0f;
+            font-weight: 600;
+        }
+        .fp.off {
+            background: var(--bg3);
+            color: var(--border);
+        }
+        .pgrid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .pgrid img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: var(--radius-sm);
+            background: var(--bg3);
+            cursor: pointer;
+            transition: all var(--tr-fast);
+        }
+        .pgrid img:hover {
+            opacity: 0.8;
+            transform: scale(1.03);
+        }
+        .dacts {
+            display: flex;
+            gap: 10px;
+            margin-top: 32px;
+            margin-bottom: 50px;
+        }
+        .abt {
+            flex: 1;
+            padding: 13px;
+            border-radius: var(--radius);
+            font-family: var(--fm);
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all var(--tr-fast);
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+        .aedit {
+            background: var(--bg2);
+            color: var(--text2);
+        }
+        .aedit:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+        .adel {
+            background: var(--danger-soft);
+            border-color: rgba(224, 85, 85, 0.2);
+            color: var(--danger);
+        }
+        .adel:hover {
+            background: rgba(224, 85, 85, 0.15);
+            border-color: var(--danger);
+        }
+
+        /* FORM */
+        .fwp {
+            padding: 20px 16px 70px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .ftitle {
+            font-family: var(--fd);
+            font-size: 36px;
+            letter-spacing: 2px;
+            margin-bottom: 24px;
+        }
+        .fgrp {
+            margin-bottom: 18px;
+        }
+        .flbl {
+            display: block;
+            font-family: var(--fm);
+            font-size: 9px;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            color: var(--text3);
+            margin-bottom: 7px;
+        }
+        .finp,
+        .ftxt {
+            width: 100%;
+            background: var(--bg2);
+            border: 2px solid var(--border);
+            color: var(--text);
+            padding: 12px 14px;
+            border-radius: var(--radius);
+            font-size: 14px;
+            font-family: var(--fb);
+            outline: none;
+            transition: all var(--tr-fast);
+        }
+        .finp:focus,
+        .ftxt:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-soft);
+        }
+        .ftxt {
+            resize: vertical;
+            min-height: 90px;
+            line-height: 1.6;
+        }
+        .crow {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .gbtn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            color: var(--text2);
+            padding: 10px;
+            border-radius: 20px;
+            font-family: var(--fm);
+            font-size: 10px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all var(--tr-fast);
+            margin-top: 8px;
+            width: 100%;
+        }
+        .gbtn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+        .gbtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .trow {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .tog {
+            padding: 8px 15px;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            background: var(--bg2);
+            color: var(--text2);
+            font-family: var(--fm);
+            font-size: 9px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all var(--tr-fast);
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+        .tog:hover {
+            border-color: var(--border-hover);
+            color: var(--text);
+        }
+        .tog.on {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #0b0b0f;
+            font-weight: 600;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+        .tog:active {
+            transform: scale(0.94);
+            transition: transform 0.08s ease;
+        }
+        .uzone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--tr-fast);
+            background: var(--bg2);
+        }
+        .uzone:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+        .uico {
+            font-size: 24px;
+            margin-bottom: 4px;
+            color: var(--border);
+            transition: color var(--tr-fast);
+        }
+        .uzone:hover .uico {
+            color: var(--accent);
+        }
+        .utxt {
+            font-size: 13px;
+            color: var(--text2);
+        }
+        .usub {
+            font-family: var(--fm);
+            font-size: 9px;
+            color: var(--text3);
+            letter-spacing: 1px;
+            margin-top: 3px;
+        }
+        .pgv {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .pi {
+            position: relative;
+            aspect-ratio: 1;
+        }
+        .pi img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: var(--radius-sm);
+        }
+        .prm {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(0, 0, 0, 0.8);
+            border: none;
+            color: #fff;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--tr-fast);
+            z-index: 2;
+        }
+        .prm:hover {
+            background: var(--danger);
+            transform: scale(1.1);
+        }
+        .fdiv {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 22px 0;
+        }
+        .fsv {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border: none;
+            color: #0b0b0f;
+            padding: 16px;
+            border-radius: var(--radius);
+            font-family: var(--fm);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all var(--tr-fast);
+            margin-top: 6px;
+            box-shadow: 0 4px 18px var(--accent-glow);
+            position: relative;
+            overflow: hidden;
+        }
+        .fsv:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px var(--accent-glow);
+        }
+        .fsv:active {
+            transform: scale(0.97);
+            transition: transform 0.08s ease;
+        }
+        .fsv:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .vis-hint {
+            font-family: var(--fm);
+            font-size: 9px;
+            color: var(--text3);
+            letter-spacing: 1px;
+            margin-top: 6px;
+            font-style: italic;
+        }
+
+        /* LIGHTBOX */
+        #lb {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.96);
+            z-index: 7777;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            animation: fadeSlideIn 0.2s ease;
+        }
+        #lb.open {
+            display: flex;
+        }
+        #lb img {
+            max-width: 94vw;
+            max-height: 88vh;
+            object-fit: contain;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+        }
+        #lb-x {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--tr-fast);
+            z-index: 10;
+        }
+        #lb-x:hover {
+            background: rgba(255, 255, 255, 0.18);
+            transform: scale(1.05);
+        }
+
+        @media(max-width:480px) {
+            .dtitle {
+                font-size: 32px;
+            }
+            .crow {
+                grid-template-columns: 1fr;
+            }
+            .pgrid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .pgv {
+                grid-template-columns: 1fr 1fr;
+            }
+            .sthumb,
+            .snothumb {
+                width: 80px;
+                min-height: 80px;
+            }
+            .sname {
+                font-size: 17px;
+            }
+            .hdr-logo {
+                font-size: 20px;
+            }
+            .hbtn {
+                padding: 6px 10px;
+                font-size: 9px;
+                letter-spacing: 1px;
+            }
+            .detail-hero {
+                height: 200px;
+            }
+            .ftitle {
+                font-size: 28px;
+            }
+            .llogo {
+                font-size: 52px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="ll">URB<span>EX</span></div>
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    </div>
+    <div id="toast"></div>
+    <div id="lb"><button id="lb-x" onclick="closeLB()">×</button><img id="lb-img" src="" alt=""></div>
+
+    <!-- LOGIN -->
+    <div class="screen" id="screen-login">
+        <div class="lglow"></div>
+        <div class="lbox">
+            <div class="llogo">URB<span>EX</span></div>
+            <div class="lsub" id="l-tag">Spot tracker — restricted access</div>
+            <div class="llbl" id="l-plbl">Password</div>
+            <input type="password" class="linp" id="lpw" autocomplete="current-password" placeholder="········">
+            <button class="lbtn" id="lbtn" onclick="doLogin()">Enter</button>
+            <div class="lerr" id="lerr">Wrong password.</div>
+        </div>
+    </div>
+
+    <!-- LIST -->
+    <div class="screen" id="screen-list">
+        <div class="hdr">
+            <div class="hdr-logo" onclick="showListTab()">URB<span>EX</span></div>
+            <div class="hdr-r">
+                <button class="hbtn" onclick="toggleLang()" id="lngbtn" data-tkey="langToggle">NL</button>
+                <button class="hico" onclick="toggleTheme()" id="thbtn" title="Toggle theme">◐</button>
+                <button class="hbtn" onclick="doLogout()" id="h-out" data-tkey="logout">Logout</button>
+                <button class="fab" onclick="showAdd(null)" title="Add spot">+</button>
+            </div>
+        </div>
+        <div class="tabs">
+            <button class="tab active" id="tab-list" onclick="switchTab('list')"><span id="tab-list-lbl" data-tkey="tabSpots">Spots</span></button>
+            <button class="tab" id="tab-map" onclick="switchTab('map')"><span id="tab-map-lbl" data-tkey="tabMap">Map</span></button>
+        </div>
+
+        <div id="list-tab">
+            <div class="search-wrap">
+                <input type="text" class="sbar" id="sbar" placeholder="Search spots..." oninput="filterSpots()" data-tkey-placeholder="search">
+            </div>
+            <div class="filter-row">
+                <select class="sort-select" id="sort-select" onchange="onSortChange(this.value)">
+                    <option value="name" id="so-name">Sort: A–Z</option>
+                    <option value="dist" id="so-dist" style="display:none">Sort: Closest first</option>
+                    <option value="dist-far" id="so-dist-far" style="display:none">Sort: Farthest first</option>
+                    <option value="easy" id="so-easy">Sort: Easy → Hard</option>
+                    <option value="hard" id="so-hard">Sort: Hard → Easy</option>
+                    <option value="notvisited" id="so-nv">Filter: Not visited</option>
+                    <option value="visited" id="so-v">Filter: Visited only</option>
+                    <option value="worth" id="so-worth">Filter: Worth it only</option>
+                </select>
+            </div>
+            <div class="page" style="padding-top:2px">
+                <div class="pmeta" id="scount">Loading...</div>
+                <div id="slist"></div>
+            </div>
+        </div>
+
+        <div id="map-tab"><div id="map"></div></div>
+    </div>
+
+    <!-- DETAIL -->
+    <div class="screen" id="screen-detail">
+        <div class="hdr">
+            <div class="hdr-logo" onclick="showListTab()">URB<span>EX</span></div>
+            <div class="hdr-r">
+                <button class="hbtn" onclick="toggleLang()" id="lngbtn2" data-tkey="langToggle">NL</button>
+                <button class="hico" onclick="toggleTheme()" title="Toggle theme">◐</button>
+            </div>
+        </div>
+        <div class="back-row">
+            <button class="back-pill" onclick="showListTab()">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M5 12l7 7M5 12l7-7"/></svg>
+                <span id="d-back" data-tkey="back">All spots</span>
+            </button>
+        </div>
+        <div class="page" id="dcontent"></div>
+    </div>
+
+    <!-- ADD / EDIT -->
+    <div class="screen" id="screen-add">
+        <div class="hdr">
+            <div class="hdr-logo">URB<span>EX</span></div>
+            <div class="hdr-r">
+                <button class="hbtn" onclick="toggleLang()" id="lngbtn3" data-tkey="langToggle">NL</button>
+                <button class="hico" onclick="toggleTheme()" title="Toggle theme">◐</button>
+                <button class="hbtn" onclick="showListTab()" id="h-cancel" data-tkey="cancel">Cancel</button>
+            </div>
+        </div>
+        <div class="fwp">
+            <div class="ftitle" id="ftitle" data-tkey="addSpot">Add Spot</div>
+            <div class="fgrp">
+                <label class="flbl" id="fl-name" data-tkey="name">Name *</label>
+                <input type="text" class="finp" id="f-name" placeholder="e.g. Verlaten Fabriek N17">
+            </div>
+            <div class="fgrp">
+                <label class="flbl" id="fl-desc" data-tkey="desc">Description</label>
+                <textarea class="ftxt" id="f-desc" placeholder="What's inside, access notes, history..."></textarea>
+            </div>
+            <hr class="fdiv">
+            <div class="fgrp">
+                <label class="flbl" id="fl-coords" data-tkey="coords">Coordinates *</label>
+                <div class="crow">
+                    <input type="number" class="finp" id="f-lat" placeholder="Latitude" step="any">
+                    <input type="number" class="finp" id="f-lng" placeholder="Longitude" step="any">
+                </div>
+                <button class="gbtn" id="gpsbtn" onclick="useGPS()">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                    <span id="gpslbl" data-tkey="useGPS">Use current location</span>
+                </button>
+            </div>
+            <hr class="fdiv">
+            <div class="fgrp">
+                <label class="flbl" id="fl-ent" data-tkey="entrance">Entrance difficulty</label>
+                <div class="trow">
+                    <button class="tog" data-grp="ent" data-val="Easy" onclick="pickTog(this)" id="te" data-tkey="easy">Easy</button>
+                    <button class="tog on" data-grp="ent" data-val="Medium" onclick="pickTog(this)" id="tm" data-tkey="medium">Medium</button>
+                    <button class="tog" data-grp="ent" data-val="Hard" onclick="pickTog(this)" id="th2" data-tkey="hard">Hard</button>
+                    <button class="tog" data-grp="ent" data-val="Unknown" onclick="pickTog(this)" id="tunk" data-tkey="unknown">Unknown</button>
+                </div>
+            </div>
+            <div class="fgrp">
+                <label class="flbl" id="fl-haz" data-tkey="hazards">Hazards & Info</label>
+                <div class="trow" id="hazards-trow">
+                    <button class="tog" data-flag="mold" onclick="flipF(this)" data-tkey="mold">Mold</button>
+                    <button class="tog" data-flag="still_water" onclick="flipF(this)" data-tkey="still_water">Still water</button>
+                    <button class="tog" data-flag="active_cameras" onclick="flipF(this)" data-tkey="active_cameras">Active cameras</button>
+                    <button class="tog" data-flag="asbestos" onclick="flipF(this)" data-tkey="asbestos">Asbestos</button>
+                    <button class="tog" data-flag="hobos" onclick="flipF(this)" data-tkey="hobos">Hobos</button>
+                    <button class="tog" data-flag="broken_glass" onclick="flipF(this)" data-tkey="broken_glass">Broken glass</button>
+                </div>
+            </div>
+            <div class="fgrp">
+                <label class="flbl" id="fl-wi" data-tkey="wi">Worth it?</label>
+                <div class="trow">
+                    <button class="tog" data-flag="worth_it" onclick="flipF(this)" id="twi" data-tkey="worth_it">Worth it</button>
+                </div>
+            </div>
+            <div class="fgrp">
+                <label class="flbl" id="fl-vis" data-tkey="alreadyVisited">Already visited?</label>
+                <div class="trow">
+                    <button class="tog on" data-flag="visited" onclick="flipF(this);toggleHazardSection(this)" id="tvis" data-tkey="visited">Visited</button>
+                </div>
+                <div class="vis-hint" id="vis-hint" data-tkey="visHint">Turn off if you haven't been here yet — hazards are optional</div>
+            </div>
+            <hr class="fdiv">
+            <div class="fgrp">
+                <label class="flbl" id="fl-th" data-tkey="thumb">Thumbnail</label>
+                <div class="uzone" onclick="document.getElementById('fi-th').click()">
+                    <div class="uico">▲</div>
+                    <div class="utxt" id="th-lbl" data-tkey="pickThumb">Pick thumbnail</div>
+                    <div class="usub" id="th-sub" data-tkey="thumbSub">Shown in spot list</div>
+                </div>
+                <input type="file" id="fi-th" accept="image/*" style="display:none" onchange="onThumb(this)">
+                <div id="th-prev"></div>
+            </div>
+            <div class="fgrp">
+                <label class="flbl" id="fl-ph" data-tkey="photos">Photos</label>
+                <div class="uzone" onclick="document.getElementById('fi-ph').click()">
+                    <div class="uico">▲</div>
+                    <div class="utxt" id="ph-lbl" data-tkey="addPhotos">Add photos</div>
+                    <div class="usub" id="ph-sub" data-tkey="photosSub">Multiple allowed</div>
+                </div>
+                <input type="file" id="fi-ph" accept="image/*" multiple style="display:none" onchange="onPhotos(this)">
+                <div class="pgv" id="ph-prev"></div>
+            </div>
+            <button class="fsv" id="fsv" onclick="doSave()" data-tkey="save">Save Spot</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+    </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+    </script>
+    <script>
+        const sb = supabase.createClient(
+            'https://hdseyqdtgrghtakogxuv.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhkc2V5cWR0Z3JnaHRha29neHV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MDAzOTYsImV4cCI6MjA5NjQ3NjM5Nn0.gOaQaasnAmX4i1rc17IUg2XQxm6PS1LtILzV4T2Zd34', { auth: { persistSession: true,
+                    storageKey: 'urbex-auth',
+                    storage: window.localStorage,
+                    autoRefreshToken: true,
+                    detectSessionInUrl: false } }
+        )
+
+        // ── TRANSLATIONS ──
+        const T = {
+            en: {
+                tag: 'Spot tracker — restricted access',
+                plbl: 'Password',
+                ebtn: 'Enter',
+                wp: 'Wrong password.',
+                logout: 'Logout',
+                cancel: 'Cancel',
+                addSpot: 'Add Spot',
+                editSpot: 'Edit Spot',
+                save: 'Save Spot',
+                saving: 'Saving...',
+                upl: 'Uploading...',
+                search: 'Search spots...',
+                spots: 'spots',
+                spot: 'spot',
+                tracked: 'tracked',
+                noSpots: 'No spots yet',
+                addFirst: 'Tap + to add your first spot.',
+                noMatch: 'No spots match your search.',
+                name: 'Name *',
+                desc: 'Description',
+                coords: 'Coordinates *',
+                useGPS: 'Use current location',
+                gpsWait: 'Getting location...',
+                entrance: 'Entrance difficulty',
+                hazards: 'Hazards & Info',
+                wi: 'Worth it?',
+                thumb: 'Thumbnail',
+                thumbSub: 'Shown in spot list',
+                photos: 'Photos',
+                photosSub: 'Multiple allowed',
+                pickThumb: 'Pick thumbnail',
+                addPhotos: 'Add photos',
+                loc: 'Location',
+                openMaps: 'Open in Maps',
+                entLbl: 'Entrance',
+                hazLbl: 'Hazards & Info',
+                phLbl: 'Photos',
+                edit: 'Edit spot',
+                del: 'Delete spot',
+                tabSpots: 'Spots',
+                tabMap: 'Map',
+                back: 'All spots',
+                confirmDel: 'Delete this spot? This cannot be undone.',
+                deleted: 'Spot deleted',
+                saved: 'Spot saved!',
+                errName: 'Name is required',
+                errCoords: 'Coordinates are required',
+                errLoad: 'Failed to load spots',
+                errSave: 'Error saving spot',
+                errDel: 'Failed to delete',
+                errGPS: 'Could not get location',
+                mold: 'Mold',
+                still_water: 'Still water',
+                active_cameras: 'Active cameras',
+                asbestos: 'Asbestos',
+                hobos: 'Hobos',
+                worth_it: 'Worth it',
+                broken_glass: 'Broken glass',
+                easy: 'Easy',
+                medium: 'Medium',
+                hard: 'Hard',
+                unknown: 'Unknown',
+                visited: 'Visited',
+                notVisited: 'Not visited',
+                markVisited: 'Mark visited',
+                markUnvisited: 'Mark unvisited',
+                alreadyVisited: 'Already visited?',
+                visHint: 'Turn off if you haven\'t been here yet — hazards are optional',
+                sortAZ: 'Sort: A–Z',
+                sortNearest: 'Sort: Closest first',
+                sortFarthest: 'Sort: Farthest first',
+                sortEasy: 'Sort: Easy → Hard',
+                sortHard: 'Sort: Hard → Easy',
+                filterNotVisited: 'Filter: Not visited',
+                filterVisited: 'Filter: Visited only',
+                filterWorth: 'Filter: Worth it only',
+                langToggle: 'NL',
+                hc: n => `${n} hazard${n>1?'s':''}`,
+                pc: n => `${n} photo${n>1?'s':''} selected`,
+                dist: d => d < 1 ? `${Math.round(d*1000)} m away` : `${d.toFixed(1)} km away`,
+            },
+            nl: {
+                tag: 'Spot tracker — beperkte toegang',
+                plbl: 'Wachtwoord',
+                ebtn: 'Inloggen',
+                wp: 'Verkeerd wachtwoord.',
+                logout: 'Uitloggen',
+                cancel: 'Annuleren',
+                addSpot: 'Spot Toevoegen',
+                editSpot: 'Spot Bewerken',
+                save: 'Spot Opslaan',
+                saving: 'Opslaan...',
+                upl: 'Uploaden...',
+                search: 'Spots zoeken...',
+                spots: 'spots',
+                spot: 'spot',
+                tracked: 'bijgehouden',
+                noSpots: 'Nog geen spots',
+                addFirst: 'Tik op + om je eerste spot toe te voegen.',
+                noMatch: 'Geen spots gevonden.',
+                name: 'Naam *',
+                desc: 'Beschrijving',
+                coords: 'Coördinaten *',
+                useGPS: 'Huidige locatie gebruiken',
+                gpsWait: 'Locatie ophalen...',
+                entrance: 'Moeilijkheidsgraad ingang',
+                hazards: 'Gevaren & Info',
+                wi: 'De moeite waard?',
+                thumb: 'Miniatuur',
+                thumbSub: 'Zichtbaar in de lijst',
+                photos: "Foto's",
+                photosSub: 'Meerdere toegestaan',
+                pickThumb: 'Miniatuur kiezen',
+                addPhotos: "Foto's toevoegen",
+                loc: 'Locatie',
+                openMaps: 'Openen in Maps',
+                entLbl: 'Ingang',
+                hazLbl: 'Gevaren & Info',
+                phLbl: "Foto's",
+                edit: 'Spot bewerken',
+                del: 'Spot verwijderen',
+                tabSpots: 'Spots',
+                tabMap: 'Kaart',
+                back: 'Alle spots',
+                confirmDel: 'Spot verwijderen? Dit kan niet ongedaan worden gemaakt.',
+                deleted: 'Spot verwijderd',
+                saved: 'Spot opgeslagen!',
+                errName: 'Naam is verplicht',
+                errCoords: 'Coördinaten zijn verplicht',
+                errLoad: 'Spots laden mislukt',
+                errSave: 'Fout bij opslaan',
+                errDel: 'Verwijderen mislukt',
+                errGPS: 'Locatie niet gevonden',
+                mold: 'Schimmel',
+                still_water: 'Stilstaand water',
+                active_cameras: "Actieve camera's",
+                asbestos: 'Asbest',
+                hobos: 'Daklozen',
+                worth_it: 'De moeite waard',
+                broken_glass: 'Gebroken glas',
+                easy: 'Makkelijk',
+                medium: 'Gemiddeld',
+                hard: 'Moeilijk',
+                unknown: 'Onbekend',
+                visited: 'Bezocht',
+                notVisited: 'Niet bezocht',
+                markVisited: 'Markeer bezocht',
+                markUnvisited: 'Markeer onbezocht',
+                alreadyVisited: 'Al bezocht?',
+                visHint: 'Zet uit als je hier nog niet bent geweest — gevaren zijn optioneel',
+                sortAZ: 'Sorteren: A–Z',
+                sortNearest: 'Sorteren: Dichtstbij eerst',
+                sortFarthest: 'Sorteren: Verst eerst',
+                sortEasy: 'Sorteren: Makkelijk → Moeilijk',
+                sortHard: 'Sorteren: Moeilijk → Makkelijk',
+                filterNotVisited: 'Filter: Niet bezocht',
+                filterVisited: 'Filter: Bezocht',
+                filterWorth: 'Filter: De moeite waard',
+                langToggle: 'EN',
+                hc: n => `${n} gevaren`,
+                pc: n => `${n} foto${n>1?"'s":''} geselecteerd`,
+                dist: d => d < 1 ? `${Math.round(d*1000)} m verwijderd` :
+                `${d.toFixed(1)} km verwijderd`,
+            }
+        }
+
+        let lang = localStorage.getItem('lang') || 'en'
+        let theme = localStorage.getItem('theme') || 'dark'
+        let allSpots = []
+        let thumbFile = null,
+            photoFiles = [],
+            editingId = null
+        let existingThumbUrl = null,
+            existingPhotoUrls = []
+        let userLat = null,
+            userLng = null
+        let leafMap = null,
+            mapInited = false,
+            currentTab = 'list'
+        let currentSort = 'name',
+            activeFilter = null
+
+        function t(k, ...a) {
+            const v = T[lang][k]
+            return typeof v === 'function' ? v(...a) : (v !== undefined ? v : k)
+        }
+
+        function setTxt(id, txt) {
+            const e = document.getElementById(id);
+            if (e) e.textContent = txt
+        }
+
+        function setOpt(id, txt) {
+            const e = document.getElementById(id);
+            if (e) e.textContent = txt
+        }
+
+        // ── COMPREHENSIVE TRANSLATION APPLICATION ──
+        function applyLang() {
+            // Update lang toggle buttons
+            const langLabel = t('langToggle');
+            ['lngbtn', 'lngbtn2', 'lngbtn3'].forEach(id => {
+                const e = document.getElementById(id);
+                if (e) e.textContent = langLabel
+            })
+
+            // Update all elements with data-tkey attribute
+            document.querySelectorAll('[data-tkey]').forEach(el => {
+                const key = el.getAttribute('data-tkey')
+                if (key && T[lang][key] !== undefined) {
+                    el.textContent = T[lang][key]
+                }
+            })
+
+            // Update placeholders with data-tkey-placeholder
+            document.querySelectorAll('[data-tkey-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-tkey-placeholder')
+                if (key && T[lang][key] !== undefined) {
+                    el.placeholder = T[lang][key]
+                }
+            })
+
+            // Update all flag/hazard toggle buttons (use querySelectorAll to catch ALL)
+            const flagKeys = ['mold', 'still_water', 'active_cameras', 'asbestos', 'hobos', 'worth_it',
+                'broken_glass', 'visited'
+            ]
+            flagKeys.forEach(k => {
+                document.querySelectorAll(`[data-flag="${k}"]`).forEach(b => {
+                    b.textContent = t(k)
+                })
+            })
+
+            // Update entrance toggle buttons (by ID)
+            const entMap = { te: 'easy', tm: 'medium', th2: 'hard', tunk: 'unknown' }
+            Object.entries(entMap).forEach(([id, key]) => setTxt(id, t(key)))
+
+            // Update sort dropdown options
+            const sortOpts = {
+                'so-name': 'sortAZ',
+                'so-dist': 'sortNearest',
+                'so-dist-far': 'sortFarthest',
+                'so-easy': 'sortEasy',
+                'so-hard': 'sortHard',
+                'so-nv': 'filterNotVisited',
+                'so-v': 'filterVisited',
+                'so-worth': 'filterWorth'
+            }
+            Object.entries(sortOpts).forEach(([id, key]) => setOpt(id, t(key)))
+
+            // Update form title based on editing state
+            setTxt('ftitle', editingId ? t('editSpot') : t('addSpot'))
+
+            // Update search placeholder
+            const sbar = document.getElementById('sbar');
+            if (sbar) sbar.placeholder = t('search')
+
+            // Update save button
+            const fsv = document.getElementById('fsv');
+            if (fsv && !fsv.disabled) fsv.textContent = t('save')
+
+            // Update GPS button label
+            const gpsbtn = document.getElementById('gpsbtn');
+            if (gpsbtn && !gpsbtn.disabled) setTxt('gpslbl', t('useGPS'))
+
+            // Update thumbnail labels if no file selected
+            if (!thumbFile && !existingThumbUrl) {
+                setTxt('th-lbl', t('pickThumb'))
+                setTxt('th-sub', t('thumbSub'))
+            }
+            if (!photoFiles.length && !existingPhotoUrls.length) {
+                setTxt('ph-lbl', t('addPhotos'))
+                setTxt('ph-sub', t('photosSub'))
+            }
+            if (photoFiles.length > 0 || existingPhotoUrls.length > 0) {
+                setTxt('ph-lbl', t('pc', existingPhotoUrls.length + photoFiles.length))
+            }
+
+            // Re-render spots if loaded
+            if (allSpots.length) filterSpots()
+            // Refresh map popups if map is initialized
+            if (mapInited) refreshMapMarkers()
+        }
+
+        function toggleLang() {
+            lang = lang === 'en' ? 'nl' : 'en'
+            localStorage.setItem('lang', lang)
+            applyLang()
+        }
+
+        // ── THEME ──
+        function applyTheme() {
+            document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : '')
+            const thbtn = document.getElementById('thbtn');
+            if (thbtn) thbtn.textContent = theme === 'light' ? '●' : '◐'
+        }
+
+        function toggleTheme() {
+            theme = theme === 'dark' ? 'light' : 'dark'
+            localStorage.setItem('theme', theme)
+            applyTheme()
+            if (mapInited) applyMapTheme()
+        }
+
+        // ── INIT ──
+        document.addEventListener('DOMContentLoaded', async () => {
+            applyTheme()
+            applyLang()
+            if (navigator.geolocation) navigator.geolocation.getCurrentPosition(p => {
+                userLat = p.coords.latitude
+                userLng = p.coords.longitude
+                const sel = document.getElementById('sort-select')
+                document.getElementById('so-dist').style.display = ''
+                document.getElementById('so-dist-far').style.display = ''
+            }, () => {})
+            const { data: { session } } = await sb.auth.getSession()
+            document.getElementById('loader').classList.add('out')
+            if (session) showListTab()
+            else showScreen('login')
+            document.getElementById('lpw').addEventListener('keydown', e => { if (e.key === 'Enter')
+                doLogin() })
+        })
+
+        function showScreen(name) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
+            const target = document.getElementById('screen-' + name)
+            if (target) {
+                target.classList.add('active')
+                // Re-trigger animation
+                target.style.animation = 'none'
+                target.offsetHeight
+                target.style.animation = ''
+            }
+            window.scrollTo(0, 0)
+        }
+
+        function showListTab() {
+            showScreen('list')
+            switchTab(currentTab)
+            loadSpots()
+        }
+
+        function showAdd(id) {
+            editingId = id
+            resetForm()
+            if (id) fillForm(id)
+            else {
+                applyLang()
+                showScreen('add')
+            }
+        }
+
+        function switchTab(tab) {
+            currentTab = tab
+            document.getElementById('tab-list').classList.toggle('active', tab === 'list')
+            document.getElementById('tab-map').classList.toggle('active', tab === 'map')
+            document.getElementById('list-tab').style.display = tab === 'list' ? 'block' : 'none'
+            document.getElementById('map-tab').classList.toggle('active', tab === 'map')
+            if (tab === 'map') initMap()
+        }
+
+        // ── SORT & FILTER ──
+        function onSortChange(val) {
+            currentSort = val
+            activeFilter = null
+            if (val === 'visited' || val === 'notvisited' || val === 'worth') activeFilter = val
+            filterSpots()
+        }
+
+        // ── MAP ──
+        function initMap() {
+            if (mapInited) { refreshMapMarkers(); return }
+            mapInited = true
+            const center = userLat ? [userLat, userLng] : [51.05, 4.35]
+            leafMap = L.map('map').setView(center, userLat ? 10 : 7)
+            L.tileLayer(theme === 'light' ?
+                'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' :
+                'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap © CARTO',
+                    maxZoom: 19 }).addTo(leafMap)
+            refreshMapMarkers()
+        }
+
+        function applyMapTheme() {
+            if (!leafMap) return
+            leafMap.eachLayer(l => { if (l._url) leafMap.removeLayer(l) })
+            L.tileLayer(theme === 'light' ?
+                'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' :
+                'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap © CARTO',
+                    maxZoom: 19 }).addTo(leafMap)
+        }
+
+        function markerColor(entrance, visited) {
+            if (visited) return '#777'
+            if (!entrance) return '#e8a840'
+            const e = entrance.toLowerCase()
+            if (e === 'easy') return '#4aaf6e'
+            if (e === 'hard') return '#e05555'
+            if (e === 'unknown') return '#888'
+            return '#e8a840'
+        }
+
+        function makeIcon(color, visited) {
+            const cross = visited ?
+                '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#000;line-height:1">✕</div>' :
+                ''
+            return L.divIcon({
+                className: '',
+                html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2.5px solid rgba(255,255,255,.85);box-shadow:0 0 10px ${color}44,0 2px 6px rgba(0,0,0,.3);position:relative">${cross}</div>`,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7],
+                popupAnchor: [0, -10]
+            })
+        }
+
+        function refreshMapMarkers() {
+            if (!leafMap) return
+            leafMap.eachLayer(l => { if (l instanceof L.Marker) leafMap.removeLayer(l) })
+            allSpots.forEach(spot => {
+                if (!spot.latitude || !spot.longitude) return
+                const color = markerColor(spot.entrance, spot.visited)
+                const marker = L.marker([spot.latitude, spot.longitude], { icon: makeIcon(color, spot
+                        .visited) })
+                const ec = spot.entrance ? spot.entrance.toLowerCase() : 'medium'
+                const ecColor = ec === 'easy' ? '#4aaf6e' : ec === 'hard' ? '#e05555' : '#e8a840'
+                const mapsUrl =
+                    `https://maps.google.com/?q=${spot.latitude},${spot.longitude}`
+                marker.bindPopup(`
+                    <div class="mpname">${esc(spot.name)}</div>
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+                        <span style="font-family:var(--fm);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${ecColor}">${spot.entrance||''}</span>
+                        ${spot.visited?`<span style="font-family:var(--fm);font-size:9px;color:#888">✓ ${t('visited')}</span>`:''}
+                        ${spot.worth_it?`<span style="font-family:var(--fm);font-size:9px;color:var(--accent)">★ ${t('worth_it')}</span>`:''}
+                    </div>
+                    <div class="mpbtns">
+                        <button class="mpbtn mpbtn-view" onclick="showDetail('${spot.id}')">${t('edit')}</button>
+                        <a class="mpbtn mpbtn-maps" href="${mapsUrl}" target="_blank">${t('openMaps')}</a>
+                    </div>
+                `)
+                marker.addTo(leafMap)
+            })
+        }
+
+        // ── AUTH ──
+        async function doLogin() {
+            const pw = document.getElementById('lpw').value
+            const btn = document.getElementById('lbtn'),
+                err = document.getElementById('lerr')
+            btn.disabled = true
+            btn.textContent = '...'
+            err.style.display = 'none'
+            const { error } = await sb.auth.signInWithPassword({ email: 'admin@urbex.app', password: pw })
+            if (error) { err.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = t('ebtn') } else showListTab()
+        }
+
+        async function doLogout() {
+            await sb.auth.signOut()
+            showScreen('login')
+            document.getElementById('lpw').value = ''
+        }
+
+        // ── SPOTS ──
+        async function loadSpots() {
+            document.getElementById('scount').textContent = '...'
+            document.getElementById('slist').innerHTML = ''
+            const { data: { session } } = await sb.auth.getSession()
+            if (!session) { showScreen('login'); return }
+            const { data, error } = await sb.from('spots').select('*').order('name', { ascending: true })
+            if (error) { toast(t('errLoad'), 'err');
+                console.error(error); return }
+            allSpots = data
+            filterSpots()
+            if (mapInited) refreshMapMarkers()
+        }
+
+        function haversine(lat1, lng1, lat2, lng2) {
+            const R = 6371,
+                dLat = (lat2 - lat1) * Math.PI / 180,
+                dLng = (lng2 - lng1) * Math.PI / 180
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math
+                .sin(dLng / 2) ** 2
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        }
+
+        function filterSpots() {
+            const q = (document.getElementById('sbar').value || '').toLowerCase()
+            let data = allSpots.filter(s => s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase()
+                .includes(q))
+            if (activeFilter === 'visited') data = data.filter(s => s.visited)
+            if (activeFilter === 'notvisited') data = data.filter(s => !s.visited)
+            if (activeFilter === 'worth') data = data.filter(s => s.worth_it)
+            const entOrd = { easy: 0, medium: 1, hard: 2, unknown: 99 }
+            const entVal = e => entOrd[(e || 'unknown').toLowerCase()] ?? 99
+            if (currentSort === 'name' || currentSort === 'visited' || currentSort === 'notvisited') data = [...data]
+                .sort((a, b) => a.name.localeCompare(b.name))
+            else if (currentSort === 'dist' && userLat) data = [...data].sort((a, b) => {
+                const da = a.latitude && a.longitude ? haversine(userLat, userLng, a.latitude, a.longitude) :
+                    99999
+                const db = b.latitude && b.longitude ? haversine(userLat, userLng, b.latitude, b.longitude) :
+                    99999
+                return da - db
+            })
+            else if (currentSort === 'dist-far' && userLat) data = [...data].sort((a, b) => {
+                const da = a.latitude && a.longitude ? haversine(userLat, userLng, a.latitude, a.longitude) : 0
+                const db = b.latitude && b.longitude ? haversine(userLat, userLng, b.latitude, b.longitude) : 0
+                return db - da
+            })
+            else if (currentSort === 'easy') data = [...data].sort((a, b) => entVal(a.entrance) - entVal(b.entrance))
+            else if (currentSort === 'hard') data = [...data].sort((a, b) => {
+                const av = entVal(a.entrance),
+                    bv = entVal(b.entrance)
+                if (av === 99 && bv !== 99) return 1
+                if (bv === 99 && av !== 99) return -1
+                return bv - av
+            })
+            renderSpots(data)
+        }
+
+        function renderSpots(data) {
+            const el = document.getElementById('slist'),
+                count = document.getElementById('scount')
+            const hazKeys = ['mold', 'still_water', 'active_cameras', 'asbestos', 'hobos', 'broken_glass']
+            count.textContent = `${data.length} ${data.length===1?t('spot'):t('spots')} ${t('tracked')}`
+            el.innerHTML = ''
+            if (!data.length) {
+                const q = document.getElementById('sbar').value
+                el.innerHTML =
+                    `<div class="empty"><div class="empty-t">${q||activeFilter?'…':t('noSpots')}</div><p class="empty-p">${q||activeFilter?t('noMatch'):t('addFirst')}</p></div>`
+                return
+            }
+            data.forEach((spot, i) => {
+                const haz = hazKeys.filter(f => spot[f])
+                const ec = 'b-' + (spot.entrance ? spot.entrance.toLowerCase() : 'unknown')
+                const thumb = spot.thumbnail_url ?
+                    `<img class="sthumb" src="${spot.thumbnail_url}" alt="${esc(spot.name)}" loading="lazy">` :
+                    `<div class="snothumb">▲</div>`
+                let distHTML = ''
+                if (userLat && spot.latitude && spot.longitude) {
+                    const d = haversine(userLat, userLng, spot.latitude, spot.longitude)
+                    distHTML = `<span class="dist">${t('dist',d)}</span>`
+                }
+                const visitedBadge = spot.visited ?
+                    `<span class="badge b-visited">✓ ${t('visited')}</span>` : ''
+                const worthClass = spot.worth_it ? ' worth-it-highlight' : ''
+                const card = document.createElement('div')
+                card.className = 'spot-card' + (spot.visited ? ' visited' : '') + worthClass
+                card.style.animationDelay = (i * 0.05) + 's'
+                card.innerHTML = `
+                    <div class="card-top" onclick="showDetail('${spot.id}')">
+                        ${thumb}
+                        <div class="sbody">
+                            <div class="sname">${esc(spot.name)}</div>
+                            <div class="smeta">
+                                ${spot.entrance?`<span class="badge ${ec}">${t(spot.entrance.toLowerCase())}</span>`:''}
+                                ${haz.length?`<span class="haz">${t('hc',haz.length)}</span>`:''}
+                                ${spot.worth_it?`<span class="badge" style="background:var(--accent-soft);color:var(--accent);border:1px solid rgba(232,168,64,.25);font-weight:600">★ ${t('worth_it')}</span>`:''}
+                                ${visitedBadge}
+                                ${distHTML}
+                            </div>
+                        </div>
+                        <div class="sarrow">›</div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="ca-btn ${spot.visited?'visited-on':''}" onclick="event.stopPropagation();toggleVisited('${spot.id}',${spot.visited})">
+                            ${spot.visited?'✕':'✓'} ${spot.visited?t('markUnvisited'):t('markVisited')}
+                        </button>
+                        <button class="ca-btn" onclick="event.stopPropagation();showDetail('${spot.id}')">
+                            ${t('edit')}
+                        </button>
+                    </div>
+                `
+                el.appendChild(card)
+            })
+        }
+
+        async function toggleVisited(id, current) {
+            const newVal = !current
+            const { error } = await sb.from('spots').update({ visited: newVal }).eq('id', id)
+            if (error) { toast(t('errSave'), 'err'); return }
+            const spot = allSpots.find(s => s.id === id)
+            if (spot) spot.visited = newVal
+            filterSpots()
+            if (mapInited) refreshMapMarkers()
+        }
+
+        // ── DETAIL ──
+        async function showDetail(id) {
+            showScreen('detail')
+            const el = document.getElementById('dcontent')
+            el.innerHTML =
+                `<div style="padding:50px 0;text-align:center;font-family:var(--fm);font-size:11px;letter-spacing:2px;color:var(--text2)">...</div>`
+            const { data: spot, error } = await sb.from('spots').select('*').eq('id', id).single()
+            if (error || !spot) { el.innerHTML =
+                '<p style="color:var(--danger);padding:20px">Not found.</p>'; return }
+            const hazKeys = ['mold', 'still_water', 'active_cameras', 'asbestos', 'hobos', 'broken_glass']
+            const photos = Array.isArray(spot.photos) ? spot.photos : []
+            const ec = 'b-' + (spot.entrance ? spot.entrance.toLowerCase() : 'unknown')
+            const mapsUrl =
+                `https://maps.google.com/?q=${spot.latitude},${spot.longitude}`
+            const wStyle = spot.worth_it ?
+                'background:var(--accent);color:#0b0b0f;padding:9px 16px;border-radius:18px;display:inline-block;font-family:var(--fm);font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase' :
+                'background:var(--bg3);color:var(--border);padding:9px 16px;border-radius:18px;display:inline-block;font-family:var(--fm);font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase'
+            el.innerHTML = `
+                ${spot.thumbnail_url?`<img class="detail-hero" src="${esc(spot.thumbnail_url)}" alt="${esc(spot.name)}">`:''}
+                <div class="dtitle">${esc(spot.name)}</div>
+                ${spot.visited?`<span class="badge b-visited" style="display:inline-block;margin-bottom:10px">✓ ${t('visited')}</span>`:''}
+                ${spot.description?`<div class="ddesc">${esc(spot.description)}</div>`:''}
+                <div class="sec">${t('loc')}</div>
+                <a class="clnk" href="${mapsUrl}" target="_blank">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                    ${spot.latitude}, ${spot.longitude} — ${t('openMaps')}
+                </a>
+                <div class="sec">${t('entLbl')}</div>
+                <span class="badge ${ec}" style="display:inline-block;margin-top:2px">${t((spot.entrance||'unknown').toLowerCase())}</span>
+                <div class="sec">${t('worth_it')}</div>
+                <span style="${wStyle}">${spot.worth_it?'✓ '+t('worth_it'):'✗ '+t('worth_it')}</span>
+                <div class="sec">${t('hazLbl')}</div>
+                <div class="fwrap">${hazKeys.map(k=>`<span class="fp ${spot[k]?'on':'off'}">${t(k)}</span>`).join('')}</div>
+                ${photos.length?`<div class="sec">${t('phLbl')}</div><div class="pgrid">${photos.map(u=>`<img src="${u}" loading="lazy" onclick="openLB('${u}')">`).join('')}</div>`:''}
+                <div class="dacts">
+                    <button class="abt aedit" onclick="showAdd('${spot.id}')">${t('edit')}</button>
+                    <button class="abt adel" onclick="doDel('${spot.id}')">${t('del')}</button>
+                </div>
+            `
+        }
+
+        async function doDel(id) {
+            if (!confirm(t('confirmDel'))) return
+            const { error } = await sb.from('spots').delete().eq('id', id)
+            if (error) { toast(t('errDel'), 'err'); return }
+            toast(t('deleted'), 'ok')
+            showListTab()
+        }
+
+        // ── FORM ──
+        function resetForm() {
+            const btn = document.getElementById('fsv');
+            if (btn) { btn.disabled = false;
+                btn.textContent = t('save') }['f-name', 'f-desc', 'f-lat', 'f-lng'].forEach(id => document
+                .getElementById(id).value = '')
+            document.getElementById('th-prev').innerHTML = ''
+            document.getElementById('ph-prev').innerHTML = ''
+            setTxt('th-lbl', t('pickThumb'))
+            setTxt('th-sub', t('thumbSub'))
+            setTxt('ph-lbl', t('addPhotos'))
+            setTxt('ph-sub', t('photosSub'))
+            document.querySelectorAll('[data-grp="ent"]').forEach(b => b.classList.toggle('on', b.dataset.val ===
+                'Medium'))
+            document.querySelectorAll('[data-flag]').forEach(b => b.classList.remove('on'))
+            const visBtn = document.querySelector('[data-flag="visited"]');
+            if (visBtn) visBtn.classList.add('on')
+            thumbFile = null
+            photoFiles = []
+            existingThumbUrl = null
+            existingPhotoUrls = []
+            // Re-translate all toggle buttons after reset
+            applyLangToToggles()
+        }
+
+        function applyLangToToggles() {
+            const flagKeys = ['mold', 'still_water', 'active_cameras', 'asbestos', 'hobos', 'worth_it',
+            'broken_glass', 'visited']
+            flagKeys.forEach(k => {
+                document.querySelectorAll(`[data-flag="${k}"]`).forEach(b => {
+                    b.textContent = t(k)
+                })
+            })
+            const entMap = { te: 'easy', tm: 'medium', th2: 'hard', tunk: 'unknown' }
+            Object.entries(entMap).forEach(([id, key]) => setTxt(id, t(key)))
+        }
+
+        async function fillForm(id) {
+            const { data: spot } = await sb.from('spots').select('*').eq('id', id).single()
+            if (!spot) { showListTab(); return }
+            document.getElementById('f-name').value = spot.name || ''
+            document.getElementById('f-desc').value = spot.description || ''
+            document.getElementById('f-lat').value = spot.latitude || ''
+            document.getElementById('f-lng').value = spot.longitude || ''
+            document.querySelectorAll('[data-grp="ent"]').forEach(b => b.classList.toggle('on', b.dataset.val === (
+                spot.entrance || 'Medium')))
+            const flagKeys = ['mold', 'still_water', 'active_cameras', 'asbestos', 'hobos', 'worth_it',
+            'broken_glass', 'visited']
+            flagKeys.forEach(k => {
+                document.querySelectorAll(`[data-flag="${k}"]`).forEach(b => b.classList.toggle('on', !!spot[
+                    k]))
+            })
+            existingThumbUrl = spot.thumbnail_url || null
+            existingPhotoUrls = Array.isArray(spot.photos) ? spot.photos : []
+            if (existingThumbUrl) {
+                setTxt('th-lbl', t('thumb') + ' (existing)')
+                document.getElementById('th-prev').innerHTML =
+                    `<div class="pgv" style="margin-top:10px"><div class="pi"><img src="${existingThumbUrl}"><button class="prm" onclick="rmExThumb()">×</button></div></div>`
+            }
+            if (existingPhotoUrls.length) renderExPhotos()
+            setTxt('ftitle', t('editSpot'))
+            // Re-translate all toggle buttons
+            applyLangToToggles()
+            showScreen('add')
+        }
+
+        function rmExThumb() {
+            existingThumbUrl = null
+            document.getElementById('th-prev').innerHTML = ''
+            setTxt('th-lbl', t('pickThumb'))
+        }
+
+        function renderExPhotos() {
+            const g = document.getElementById('ph-prev')
+            g.innerHTML = ''
+            existingPhotoUrls.forEach((url, i) => {
+                const item = document.createElement('div')
+                item.className = 'pi'
+                item.innerHTML =
+                    `<img src="${url}"><button class="prm" onclick="rmExPhoto(${i})">×</button>`
+                g.appendChild(item)
+            })
+            renderNewPreviews()
+        }
+
+        function rmExPhoto(i) { existingPhotoUrls.splice(i, 1);
+            renderExPhotos() }
+
+        function pickTog(btn) {
+            document.querySelectorAll(`[data-grp="${btn.dataset.grp}"]`).forEach(b => b.classList.remove('on'))
+            btn.classList.add('on')
+        }
+
+        function flipF(btn) { btn.classList.toggle('on') }
+
+        function toggleHazardSection(btn) {
+            // no-op, hazards remain optional either way
+        }
+
+        function onThumb(inp) {
+            if (!inp.files[0]) return
+            thumbFile = inp.files[0]
+            setTxt('th-lbl', thumbFile.name)
+            const r = new FileReader()
+            r.onload = e => {
+                document.getElementById('th-prev').innerHTML =
+                    `<div class="pgv" style="margin-top:10px"><div class="pi"><img src="${e.target.result}"><button class="prm" onclick="rmThumb()">×</button></div></div>`
+            }
+            r.readAsDataURL(thumbFile)
+        }
+
+        function rmThumb() {
+            thumbFile = null
+            document.getElementById('th-prev').innerHTML = ''
+            setTxt('th-lbl', t('pickThumb'))
+            document.getElementById('fi-th').value = ''
+        }
+
+        function onPhotos(inp) {
+            photoFiles = [...photoFiles, ...Array.from(inp.files)]
+            renderNewPreviews()
+        }
+
+        function renderNewPreviews() {
+            const g = document.getElementById('ph-prev')
+            g.querySelectorAll('.new-pi').forEach(e => e.remove())
+            const total = existingPhotoUrls.length + photoFiles.length
+            setTxt('ph-lbl', total > 0 ? t('pc', total) : t('addPhotos'))
+            photoFiles.forEach((file, i) => {
+                const r = new FileReader()
+                r.onload = e => {
+                    const item = document.createElement('div')
+                    item.className = 'pi new-pi'
+                    item.innerHTML =
+                        `<img src="${e.target.result}"><button class="prm" onclick="rmNewPhoto(${i})">×</button>`
+                    g.appendChild(item)
+                }
+                r.readAsDataURL(file)
+            })
+        }
+
+        function rmNewPhoto(i) { photoFiles.splice(i, 1);
+            renderNewPreviews() }
+
+        function useGPS() {
+            const btn = document.getElementById('gpsbtn')
+            if (!navigator.geolocation) { toast(t('errGPS'), 'err'); return }
+            btn.disabled = true
+            setTxt('gpslbl', t('gpsWait'))
+            navigator.geolocation.getCurrentPosition(
+                p => {
+                    document.getElementById('f-lat').value = p.coords.latitude.toFixed(6)
+                    document.getElementById('f-lng').value = p.coords.longitude.toFixed(6)
+                    btn.disabled = false
+                    setTxt('gpslbl', t('useGPS'))
+                    toast('GPS OK', 'ok')
+                },
+                () => { btn.disabled = false;
+                    setTxt('gpslbl', t('useGPS'));
+                    toast(t('errGPS'), 'err') }
+            )
+        }
+
+        async function upload(file) {
+            const ext = file.name.split('.').pop() || 'jpg'
+            const name = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+            const { error } = await sb.storage.from('photos').upload(name, file, { contentType: file.type })
+            if (error) throw error
+            return sb.storage.from('photos').getPublicUrl(name).data.publicUrl
+        }
+
+        async function doSave() {
+            const name = document.getElementById('f-name').value.trim()
+            const desc = document.getElementById('f-desc').value.trim()
+            const lat = parseFloat(document.getElementById('f-lat').value)
+            const lng = parseFloat(document.getElementById('f-lng').value)
+            const entrance = document.querySelector('[data-grp="ent"].on')?.dataset.val || 'Medium'
+            if (!name) { toast(t('errName'), 'err'); return }
+            if (isNaN(lat) || isNaN(lng)) { toast(t('errCoords'), 'err'); return }
+            const flags = {}
+            document.querySelectorAll('[data-flag]').forEach(b => {
+                if (b.dataset.flag !== 'visited') flags[b.dataset.flag] = b.classList.contains('on')
+            })
+            const visitedVal = document.querySelector('[data-flag="visited"]')?.classList.contains('on') ?? true
+            const btn = document.getElementById('fsv')
+            btn.disabled = true
+            btn.textContent = t('upl')
+            try {
+                let thumbnailUrl = existingThumbUrl
+                if (thumbFile) { btn.textContent = t('upl');
+                    thumbnailUrl = await upload(thumbFile) }
+                const photoUrls = [...existingPhotoUrls]
+                for (let i = 0; i < photoFiles.length; i++) {
+                    btn.textContent =
+                        `${t('upl')} ${existingPhotoUrls.length+i+1}/${existingPhotoUrls.length+photoFiles.length}`
+                    photoUrls.push(await upload(photoFiles[i]))
+                }
+                btn.textContent = t('saving')
+                const payload = { name, description: desc, latitude: lat, longitude: lng, entrance,
+                    thumbnail_url: thumbnailUrl, photos: photoUrls, visited: visitedVal, ...flags }
+                let error
+                if (editingId)({ error } = await sb.from('spots').update(payload).eq('id', editingId))
+                else({ error } = await sb.from('spots').insert(payload))
+                if (error) throw error
+                toast(t('saved'), 'ok')
+                showListTab()
+            } catch (e) {
+                toast(t('errSave') + ': ' + e.message, 'err')
+                btn.disabled = false
+                btn.textContent = t('save')
+            } finally {
+                setTimeout(() => { btn.disabled = false; if (btn.textContent !== t('save')) btn.textContent = t(
+                        'save') }, 15000)
+            }
+        }
+
+        function openLB(url) {
+            document.getElementById('lb-img').src = url
+            document.getElementById('lb').classList.add('open')
+        }
+
+        function closeLB() { document.getElementById('lb').classList.remove('open') }
+        document.getElementById('lb').addEventListener('click', e => { if (e.target === e.currentTarget) closeLB() })
+
+        function toast(msg, type = '') {
+            const el = document.getElementById('toast')
+            el.textContent = msg
+            el.className = 'toast ' + type + ' show'
+            clearTimeout(el._t)
+            el._t = setTimeout(() => el.classList.remove('show'), 3000)
+        }
+
+        function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(
+            /"/g, '&quot;') }
+    </script>
+
+    <!--
+    ╔══════════════════════════════════════════════════════════╗
+    ║  THINGS YOU COULD ADD (but aren't added yet):         ║
+    ╠══════════════════════════════════════════════════════════╣
+    ║  1. Auto-detect system dark/light mode preference     ║
+    ║  2. Spot sharing via generated link / QR code         ║
+    ║  3. Export all spots as JSON / CSV / GPX file         ║
+    ║  4. Import spots from JSON / CSV / GPX file           ║
+    ║  5. Offline support with Service Worker + IndexedDB   ║
+    ║  6. Spot categories / tags (rooftop, bunker, etc.)    ║
+    ║  7. User rating system (1-5 stars per spot)           ║
+    ║  8. Comment threads on each spot                      ║
+    ║  9. Photo carousel / swipe in detail view             ║
+    ║ 10. Animated route lines between nearby spots on map  ║
+    ║ 11. Push notifications when near a spot (geofence)    ║
+    ║ 12. Multi-user support with private/public spots      ║
+    ║ 13. Spot "condition reports" with timestamps          ║
+    ║ 14. Full-screen map mode with spot clustering         ║
+    ║ 15. Drag-and-drop photo reordering                    ║
+    ║ 16. Audio notes attached to spots                     ║
+    ║ 17. Night mode map style toggle independent of theme  ║
+    ║ 18. Spot visit history timeline                       ║
+    ║ 19. Weather overlay on map (OpenWeather API)          ║
+    ║ 20. PWA manifest for "Add to Home Screen"             ║
+    ╚══════════════════════════════════════════════════════════╝
+    -->
+</body>
+</html>
