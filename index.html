@@ -10,16 +10,13 @@
     <meta name="color-scheme" content="dark light">
     <title>URBEX — Spots</title>
 
-    <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://unpkg.com" crossorigin>
     <link rel="preconnect" href="https://hdseyqdtgrghtakogxuv.supabase.co" crossorigin>
 
-    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-    <!-- Leaflet CSS (deferred loading) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" media="print" onload="this.media='all'">
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" media="print" onload="this.media='all'">
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" media="print" onload="this.media='all'">
@@ -30,6 +27,7 @@
     </noscript>
 
     <style>
+        /* ---------- FULL CSS (identical to previous full version) ---------- */
         :root {
             --bg: #09090d;
             --bg2: #111118;
@@ -155,6 +153,13 @@
         .settings-btn,.add-quick-btn{width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all var(--tr-fast);font-size:18px;flex-shrink:0;line-height:1}
         .settings-btn{background:var(--bg2);border:1.5px solid var(--border);color:var(--text2)}
         .settings-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);transform:rotate(30deg)}
+        /* Active state when dropdown is open */
+        .settings-btn[aria-expanded="true"] {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
+            transform: rotate(60deg);
+        }
         .add-quick-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#0a0a12;font-size:24px;font-weight:300;box-shadow:0 2px 14px var(--accent-glow)}
         .add-quick-btn:hover{transform:scale(1.1);box-shadow:0 4px 22px var(--accent-glow)}
         .add-quick-btn:active{transform:scale(.94);transition:transform .1s ease}
@@ -176,6 +181,7 @@
         .tab.active{color:var(--accent);background:var(--accent-soft);border-color:rgba(240,176,64,.25);font-weight:600;box-shadow:0 0 20px var(--accent-soft)}
         .tab:hover:not(.active){color:var(--text);background:var(--bg2);border-color:var(--border)}
 
+        /* … all other CSS from the full version unchanged … */
         #screen-login{display:none;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:28px;background:var(--bg);position:relative;overflow:hidden}
         #screen-login.active{display:flex}
         .lglow{position:absolute;inset:0;background:radial-gradient(ellipse 55% 40% at 70% 18%,rgba(240,176,64,.1) 0%,transparent 55%),radial-gradient(ellipse 40% 55% at 22% 72%,rgba(232,150,46,.07) 0%,transparent 55%);pointer-events:none}
@@ -525,6 +531,10 @@
             <button class="gbtn" id="gpsbtn" onclick="useGPS()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg> <span id="gpslbl">Use current location</span></button>
             <label class="flbl" style="margin-top:14px" id="fl-paste">Paste Google Maps link or coordinates</label>
             <input type="text" class="finp" id="coord-paste" placeholder="51.219, 4.402 or maps link" onpaste="setTimeout(()=>parseCoordinatePaste(),10)" oninput="parseCoordinatePaste()">
+            <button class="gbtn" onclick="autofillCoords()" style="margin-top:8px">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+                <span id="autofill-lbl">Autofill Coordinates</span>
+            </button>
         </div>
         <hr class="fdiv">
         <div class="fgrp"><label class="flbl" id="fl-ent">Entrance difficulty</label>
@@ -607,6 +617,7 @@
       hc:n=>`${n} hazard${n>1?'s':''}`,pc:n=>`${n} photo${n>1?'s':''} selected`,
       dist:d=>d<1?`${Math.round(d*1000)} m away`:`${d.toFixed(1)} km away`,
       pasteCoord:'Paste Google Maps link or coordinates', pastePlaceholder:'51.219, 4.402 or maps link',
+      autofill:'Autofill Coordinates',
     },
     nl: {
       tag:'Spot tracker — beperkte toegang',plbl:'Wachtwoord',ebtn:'Inloggen',wp:'Verkeerd wachtwoord.',
@@ -639,6 +650,7 @@
       hc:n=>`${n} gevaren`,pc:n=>`${n} foto${n>1?"'s":''} geselecteerd`,
       dist:d=>d<1?`${Math.round(d*1000)} m verwijderd`:`${d.toFixed(1)} km verwijderd`,
       pasteCoord:'Plak Google Maps link of coördinaten', pastePlaceholder:'51.219, 4.402 of maps link',
+      autofill:'Coördinaten invullen',
     }
   };
 
@@ -677,6 +689,7 @@
     setTxt('fl-vis', t('alreadyVisited')); setTxt('vis-hint', t('visHint'));
     setTxt('fl-paste', t('pasteCoord'));
     const coordPaste = document.getElementById('coord-paste'); if(coordPaste) coordPaste.placeholder = t('pastePlaceholder');
+    setTxt('autofill-lbl', t('autofill'));
     if(!thumbFile && !existingThumbUrl){ setTxt('th-lbl', t('pickThumb')); setTxt('th-sub', t('thumbSub')); }
     if(!photoFiles.length && !existingPhotoUrls.length){ setTxt('ph-lbl', t('addPhotos')); setTxt('ph-sub', t('photosSub')); }
     const dangerTitle = document.querySelector('.danger-zone-title'); if(dangerTitle) dangerTitle.textContent = '⚠️ ' + t('dangerZone');
@@ -705,7 +718,6 @@
   function applyTheme(){ document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : ''); }
   function toggleTheme(){ theme = theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('theme', theme); applyTheme(); if(mapInited) applyMapTheme(); applyLang(); }
 
-  // Fixed dropdown toggle
   function toggleSettingsMenu(e){
     if(e) e.stopPropagation();
     const dd = document.getElementById('settings-dropdown');
@@ -940,7 +952,7 @@
   function toast(msg,type=''){const el=document.getElementById('toast');el.textContent=msg;el.className='toast '+type+' show';el.setAttribute('role',type==='err'?'alert':'status');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),3000)}
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
-  // Coordinate parser
+  // Coordinate parser (called on paste / input)
   function parseCoordinatePaste(){
     const raw = document.getElementById('coord-paste').value.trim();
     if(!raw) return;
@@ -974,7 +986,17 @@
     if(lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)){
       document.getElementById('f-lat').value = lat.toFixed(6);
       document.getElementById('f-lng').value = lng.toFixed(6);
-      toast('Coordinates filled', 'ok');
+    }
+  }
+
+  // Autofill button action: parse & clear
+  function autofillCoords(){
+    parseCoordinatePaste();
+    if(document.getElementById('f-lat').value !== '' && document.getElementById('f-lng').value !== ''){
+      document.getElementById('coord-paste').value = '';
+      toast(t('saved'), 'ok');
+    } else {
+      toast(t('errCoords'), 'err');
     }
   }
 
@@ -1015,6 +1037,7 @@
   window.confirmDeleteSpot = confirmDeleteSpot;
   window.doDel = doDel;
   window.parseCoordinatePaste = parseCoordinatePaste;
+  window.autofillCoords = autofillCoords;
 })();
 </script>
 </body>
