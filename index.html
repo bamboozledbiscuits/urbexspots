@@ -315,6 +315,8 @@
         .sec{font-family:var(--fm);font-size:9px;letter-spacing:3.5px;text-transform:uppercase;color:var(--text3);margin-bottom:10px;margin-top:22px}
         .clnk{font-family:var(--fm);font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid rgba(240,176,64,.2);padding:11px 16px;border-radius:var(--radius-sm);display:inline-flex;align-items:center;gap:10px;transition:all var(--tr-fast);word-break:break-all}
         .clnk:hover{background:var(--accent-soft2);border-color:var(--accent);box-shadow:0 0 20px var(--accent-soft)}
+        .copy-coords{font-family:var(--fm);font-size:9px;letter-spacing:1px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);padding:5px 9px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;margin-top:6px;transition:all var(--tr-fast)}
+        .copy-coords:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
         .fwrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
         .fp{padding:8px 15px;border-radius:18px;font-family:var(--fm);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;font-weight:500;transition:all var(--tr-fast)}
         .fp.on{background:var(--accent);color:#0a0a12;box-shadow:0 2px 10px var(--accent-glow)}
@@ -587,6 +589,9 @@
     { auth: { persistSession: true, storageKey: 'urbex-auth', storage: window.localStorage, autoRefreshToken: true, detectSessionInUrl: false } }
   );
 
+  const VIEWER_EMAIL = 'viewer@urbex.app';
+  let userRole = null; // set after login by checking session email
+
   const T = {
     en: {
       tag:'Spot tracker — restricted access',plbl:'Password',ebtn:'Enter',wp:'Wrong password.',
@@ -599,7 +604,7 @@
       entrance:'Entrance difficulty',hazards:'Hazards & Info',wi:'Worth it?',
       thumb:'Thumbnail',thumbSub:'Shown in spot list',photos:'Photos',photosSub:'Multiple allowed',
       pickThumb:'Pick thumbnail',addPhotos:'Add photos',
-      loc:'Location',openMaps:'Open in Maps',entLbl:'Entrance',hazLbl:'Hazards & Info',phLbl:'Photos',
+      loc:'Location',openMaps:'Open in Maps',copyCoords:'Copy coords',copied:'Copied!',entLbl:'Entrance',hazLbl:'Hazards & Info',phLbl:'Photos',
       edit:'Edit spot',del:'Delete spot',tabSpots:'Spots',tabMap:'Map',
       back:'All spots',confirmDel:'Delete this spot? This cannot be undone.',
       deleted:'Spot deleted',saved:'Spot saved!',
@@ -631,7 +636,7 @@
       entrance:'Moeilijkheidsgraad ingang',hazards:'Gevaren & Info',wi:'De moeite waard?',
       thumb:'Miniatuur',thumbSub:'Zichtbaar in de lijst',photos:"Foto's",photosSub:'Meerdere toegestaan',
       pickThumb:'Miniatuur kiezen',addPhotos:"Foto's toevoegen",
-      loc:'Locatie',openMaps:'Openen in Maps',entLbl:'Ingang',hazLbl:'Gevaren & Info',phLbl:"Foto's",
+      loc:'Locatie',openMaps:'Openen in Maps',copyCoords:'Coördinaten kopiëren',copied:'Gekopieerd!',entLbl:'Ingang',hazLbl:'Gevaren & Info',phLbl:"Foto's",
       edit:'Spot bewerken',del:'Spot verwijderen',tabSpots:'Spots',tabMap:'Kaart',
       back:'Alle spots',confirmDel:'Spot verwijderen? Dit kan niet ongedaan worden gemaakt.',
       deleted:'Spot verwijderd',saved:'Spot opgeslagen!',
@@ -738,15 +743,15 @@
     if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>{ userLat=p.coords.latitude; userLng=p.coords.longitude; document.getElementById('so-dist').style.display=''; document.getElementById('so-dist-far').style.display=''; }, ()=>{});
     const { data: { session } } = await sb.auth.getSession();
     document.getElementById('loader').classList.add('out');
-    if(session) showListTab();
-    else showScreen('login');
+    if(session){ userRole = session.user.email === VIEWER_EMAIL ? 'viewer' : 'admin'; applyRoleUI(); showListTab(); }
+    else { userRole=null; showScreen('login'); }
     document.getElementById('lpw').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
     document.getElementById('map').addEventListener('click', e => { if(e.target.classList.contains('leaflet-container') || e.target.id === 'map') closeMapPanel(); });
   });
 
   function showScreen(name){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById('screen-'+name).classList.add('active'); window.scrollTo(0,0); }
   function showListTab(){ showScreen('list'); switchTab(currentTab); loadSpots(); }
-  function showAdd(id){ editingId = id; resetForm(); if(id) fillForm(id); else { applyLang(); showScreen('add'); } }
+  function showAdd(id){ if(userRole === 'viewer') return; editingId = id; resetForm(); if(id) fillForm(id); else { applyLang(); showScreen('add'); } }
 
   function switchTab(tab){
     currentTab = tab;
@@ -757,6 +762,13 @@
     document.getElementById('list-tab').style.display = tab === 'list' ? 'block' : 'none';
     document.getElementById('map-tab').classList.toggle('active', tab === 'map');
     if(tab === 'map') initMap();
+  }
+
+  function applyRoleUI(){
+    const addBtn = document.querySelector('.add-quick-btn');
+    if(addBtn){
+      addBtn.style.display = (userRole === 'viewer') ? 'none' : '';
+    }
   }
 
   function onSortChange(val){ currentSort = val; activeFilter = null; if(val==='visited'||val==='notvisited'||val==='worth') activeFilter = val; filterSpots(); }
@@ -905,10 +917,28 @@
   }
   function closeMapPanel(){ document.getElementById('map-spot-panel').classList.remove('open'); }
 
-  async function doLogin(){ const pw=document.getElementById('lpw').value, btn=document.getElementById('lbtn'), err=document.getElementById('lerr'); btn.disabled=true; btn.textContent='...'; err.style.display='none'; const {error}=await sb.auth.signInWithPassword({email:'admin@urbex.app',password:pw}); if(error){err.style.display='block'; btn.disabled=false; btn.textContent=t('ebtn');} else showListTab(); }
+  async function doLogin(){
+    const pw=document.getElementById('lpw').value, btn=document.getElementById('lbtn'), err=document.getElementById('lerr');
+    btn.disabled=true; btn.textContent='...'; err.style.display='none';
+    const [adminTry, viewerTry] = await Promise.all([
+      sb.auth.signInWithPassword({email:'admin@urbex.app', password:pw}),
+      sb.auth.signInWithPassword({email:VIEWER_EMAIL, password:pw})
+    ]);
+    if(!adminTry.error){ userRole='admin'; applyRoleUI(); showListTab(); }
+    else if(!viewerTry.error){ userRole='viewer'; applyRoleUI(); showListTab(); }
+    else { err.style.display='block'; btn.disabled=false; btn.textContent=t('ebtn'); }
+  }
   async function doLogout(){ await sb.auth.signOut(); showScreen('login'); document.getElementById('lpw').value=''; }
 
-  async function loadSpots(){ document.getElementById('scount').textContent='...'; document.getElementById('slist').innerHTML=''; const {data:{session}}=await sb.auth.getSession(); if(!session){showScreen('login');return}; const {data,error}=await sb.from('spots').select('*').order('name',{ascending:true}); if(error){toast(t('errLoad'),'err');return}; allSpots=data; filterSpots(); if(mapInited)refreshMapMarkers(); }
+  async function loadSpots(){
+    document.getElementById('scount').textContent='...'; document.getElementById('slist').innerHTML='';
+    const {data:{session}}=await sb.auth.getSession();
+    if(!session){ userRole=null; showScreen('login'); return; }
+    userRole = session.user.email === VIEWER_EMAIL ? 'viewer' : 'admin';
+    const {data,error}=await sb.from('spots').select('*').order('name',{ascending:true});
+    if(error){toast(t('errLoad'),'err');return};
+    allSpots=data; filterSpots(); if(mapInited)refreshMapMarkers(); applyRoleUI();
+  }
 
   function haversine(lat1,lng1,lat2,lng2){const R=6371,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
 
@@ -916,9 +946,9 @@
 
   function filterSpots(){ const q=(document.getElementById('sbar').value||'').toLowerCase(); let data=allSpots.filter(s=>s.name.toLowerCase().includes(q)||(s.description||'').toLowerCase().includes(q)); if(activeFilter==='visited')data=data.filter(s=>s.visited); if(activeFilter==='notvisited')data=data.filter(s=>!s.visited); if(activeFilter==='worth')data=data.filter(s=>s.worth_it); const entOrd={easy:0,medium:1,hard:2,unknown:99},entVal=e=>entOrd[(e||'unknown').toLowerCase()]??99; if(currentSort==='name')data=[...data].sort((a,b)=>a.name.localeCompare(b.name)); else if(currentSort==='dist'&&userLat)data=[...data].sort((a,b)=>{const da=a.latitude?haversine(userLat,userLng,a.latitude,a.longitude):99999,db=b.latitude?haversine(userLat,userLng,b.latitude,b.longitude):99999;return da-db}); else if(currentSort==='dist-far'&&userLat)data=[...data].sort((a,b)=>{const da=a.latitude?haversine(userLat,userLng,a.latitude,a.longitude):0,db=b.latitude?haversine(userLat,userLng,b.latitude,b.longitude):0;return db-da}); else if(currentSort==='easy')data=[...data].sort((a,b)=>entVal(a.entrance)-entVal(b.entrance)); else if(currentSort==='hard')data=[...data].sort((a,b)=>{const av=entVal(a.entrance),bv=entVal(b.entrance);if(av===99&&bv!==99)return 1;if(bv===99&&av!==99)return-1;return bv-av}); renderSpots(data); }
 
-  function renderSpots(data){ const el=document.getElementById('slist'),count=document.getElementById('scount'); const hazKeys=['mold','still_water','active_cameras','asbestos','hobos','broken_glass']; count.textContent=`${data.length} ${data.length===1?t('spot'):t('spots')} ${t('tracked')}`; el.innerHTML=''; if(!data.length){ const q=document.getElementById('sbar').value; el.innerHTML=`<div class="empty"><div class="empty-t">${q||activeFilter?'…':t('noSpots')}</div><p>${q||activeFilter?t('noMatch'):t('addFirst')}</p></div>`; el.innerHTML += `<div class="add-spot-card" onclick="showAdd(null)"><span class="plus-icon">+</span><span class="add-text">${t('addNewSpot')}</span></div>`; return; }; data.forEach((spot,i)=>{ const haz=hazKeys.filter(f=>spot[f]),ec='b-'+(spot.entrance?spot.entrance.toLowerCase():'unknown'); const thumb=spot.thumbnail_url?`<img class="sthumb" src="${spot.thumbnail_url}" alt="${esc(spot.name)}" loading="lazy">`:`<div class="snothumb">▲</div>`; let distHTML=''; if(userLat&&spot.latitude&&spot.longitude){const d=haversine(userLat,userLng,spot.latitude,spot.longitude);distHTML=`<span class="dist">${t('dist',d)}</span>`}; const visitedBadge=spot.visited?`<span class="badge b-visited">✓ ${t('visited')}</span>`:''; const card=document.createElement('div'); card.className='spot-card'; card.style.animationDelay=(i*0.05)+'s'; card.innerHTML=`<div class="card-top" onclick="showDetail('${spot.id}')">${thumb}<div class="sbody"><div class="sname">${esc(spot.name)}</div><div class="smeta">${spot.entrance?`<span class="badge ${ec}">${t(spot.entrance.toLowerCase())}</span>`:''}${haz.length?`<span class="haz">${t('hc',haz.length)}</span>`:''}${spot.worth_it?`<span class="badge" style="background:var(--accent-soft);color:var(--accent);border:1px solid rgba(240,176,64,.25);font-weight:600">★ ${t('worth_it')}</span>`:''}${visitedBadge}${distHTML}</div></div></div>`; el.appendChild(card); }); const addCard = document.createElement('div'); addCard.className = 'add-spot-card'; addCard.onclick = () => showAdd(null); addCard.innerHTML = `<span class="plus-icon">+</span><span class="add-text">${t('addNewSpot')}</span>`; el.appendChild(addCard); }
+  function renderSpots(data){ const el=document.getElementById('slist'),count=document.getElementById('scount'); const hazKeys=['mold','still_water','active_cameras','asbestos','hobos','broken_glass']; count.textContent=`${data.length} ${data.length===1?t('spot'):t('spots')} ${t('tracked')}`; el.innerHTML=''; if(!data.length){ const q=document.getElementById('sbar').value; el.innerHTML=`<div class="empty"><div class="empty-t">${q||activeFilter?'…':t('noSpots')}</div><p>${q||activeFilter?t('noMatch'):t('addFirst')}</p></div>`; if(userRole !== 'viewer') el.innerHTML += `<div class="add-spot-card" onclick="showAdd(null)"><span class="plus-icon">+</span><span class="add-text">${t('addNewSpot')}</span></div>`; return; }; data.forEach((spot,i)=>{ const haz=hazKeys.filter(f=>spot[f]),ec='b-'+(spot.entrance?spot.entrance.toLowerCase():'unknown'); const thumb=spot.thumbnail_url?`<img class="sthumb" src="${spot.thumbnail_url}" alt="${esc(spot.name)}" loading="lazy">`:`<div class="snothumb">▲</div>`; let distHTML=''; if(userLat&&spot.latitude&&spot.longitude){const d=haversine(userLat,userLng,spot.latitude,spot.longitude);distHTML=`<span class="dist">${t('dist',d)}</span>`}; const visitedBadge=spot.visited?`<span class="badge b-visited">✓ ${t('visited')}</span>`:''; const card=document.createElement('div'); card.className='spot-card'; card.style.animationDelay=(i*0.05)+'s'; card.innerHTML=`<div class="card-top" onclick="showDetail('${spot.id}')">${thumb}<div class="sbody"><div class="sname">${esc(spot.name)}</div><div class="smeta">${spot.entrance?`<span class="badge ${ec}">${t(spot.entrance.toLowerCase())}</span>`:''}${haz.length?`<span class="haz">${t('hc',haz.length)}</span>`:''}${spot.worth_it?`<span class="badge" style="background:var(--accent-soft);color:var(--accent);border:1px solid rgba(240,176,64,.25);font-weight:600">★ ${t('worth_it')}</span>`:''}${visitedBadge}${distHTML}</div></div></div>`; el.appendChild(card); }); if(userRole !== 'viewer'){ const addCard = document.createElement('div'); addCard.className = 'add-spot-card'; addCard.onclick = () => showAdd(null); addCard.innerHTML = `<span class="plus-icon">+</span><span class="add-text">${t('addNewSpot')}</span>`; el.appendChild(addCard); } }
 
-  async function showDetail(id){ showScreen('detail'); const el=document.getElementById('dcontent'); el.innerHTML='<div style="padding:60px 0;text-align:center;font-family:var(--fm);font-size:11px;color:var(--text2)">Loading…</div>'; const {data:spot,error}=await sb.from('spots').select('*').eq('id',id).single(); if(error||!spot){el.innerHTML='<p style="color:var(--danger);padding:20px">Not found.</p>';return}; const hazKeys=['mold','still_water','active_cameras','asbestos','hobos','broken_glass'],photos=Array.isArray(spot.photos)?spot.photos:[]; const mapsUrl=`https://maps.google.com/?q=${spot.latitude},${spot.longitude}`; const wStyle = spot.worth_it ? 'background:var(--accent);color:#0a0a12;padding:10px 18px;border-radius:20px;display:inline-block;font-family:var(--fm);font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase;box-shadow:0 2px 12px var(--accent-glow)' : 'background:var(--bg3);color:var(--border);padding:10px 18px;border-radius:20px;display:inline-block;font-family:var(--fm);font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase'; el.innerHTML=`${spot.thumbnail_url?`<img class="detail-hero" src="${esc(spot.thumbnail_url)}" alt="${esc(spot.name)}" loading="lazy">`:''}<div class="dtitle">${esc(spot.name)}</div>${spot.visited?`<span class="badge b-visited" style="display:inline-block;margin-bottom:12px">✓ ${t('visited')}</span>`:''}${spot.description?`<div class="ddesc">${esc(spot.description)}</div>`:''}<div class="sec">${t('loc')}</div><a class="clnk" href="${mapsUrl}" target="_blank" rel="noopener"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> ${spot.latitude}, ${spot.longitude} — ${t('openMaps')}</a><div class="sec">${t('entLbl')}</div><span class="badge b-${(spot.entrance||'unknown').toLowerCase()}" style="display:inline-block;margin-top:4px">${t((spot.entrance||'unknown').toLowerCase())}</span><div class="sec">${t('worth_it')}</div><span style="${wStyle}">${spot.worth_it?'✓ '+t('worth_it'):'✗ '+t('worth_it')}</span><div class="sec">${t('hazLbl')}</div><div class="fwrap">${hazKeys.map(k=>`<span class="fp ${spot[k]?'on':'off'}">${t(k)}</span>`).join('')}</div>${photos.length?`<div class="sec">${t('phLbl')}</div><div class="pgrid">${photos.map(u=>`<img src="${u}" loading="lazy" onclick="openLB('${u}')" alt="Photo">`).join('')}</div>`:''}<div class="dacts"><button class="abt" onclick="showAdd('${spot.id}')">${t('edit')}</button></div>`; }
+  async function showDetail(id){ showScreen('detail'); const el=document.getElementById('dcontent'); el.innerHTML='<div style="padding:60px 0;text-align:center;font-family:var(--fm);font-size:11px;color:var(--text2)">Loading…</div>'; const {data:spot,error}=await sb.from('spots').select('*').eq('id',id).single(); if(error||!spot){el.innerHTML='<p style="color:var(--danger);padding:20px">Not found.</p>';return}; const hazKeys=['mold','still_water','active_cameras','asbestos','hobos','broken_glass'],photos=Array.isArray(spot.photos)?spot.photos:[]; const mapsUrl=`https://maps.google.com/?q=${spot.latitude},${spot.longitude}`; const wStyle = spot.worth_it ? 'background:var(--accent);color:#0a0a12;padding:10px 18px;border-radius:20px;display:inline-block;font-family:var(--fm);font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase;box-shadow:0 2px 12px var(--accent-glow)' : 'background:var(--bg3);color:var(--border);padding:10px 18px;border-radius:20px;display:inline-block;font-family:var(--fm);font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase'; el.innerHTML=`${spot.thumbnail_url?`<img class="detail-hero" src="${esc(spot.thumbnail_url)}" alt="${esc(spot.name)}" loading="lazy">`:''}<div class="dtitle">${esc(spot.name)}</div>${spot.visited?`<span class="badge b-visited" style="display:inline-block;margin-bottom:12px">✓ ${t('visited')}</span>`:''}${spot.description?`<div class="ddesc">${esc(spot.description)}</div>`:''}<div class="sec">${t('loc')}</div><a class="clnk" href="${mapsUrl}" target="_blank" rel="noopener"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg> ${spot.latitude}, ${spot.longitude} — ${t('openMaps')}</a><div><button class="copy-coords" onclick="copyCoords(${spot.latitude}, ${spot.longitude})">📋 ${t('copyCoords')}</button></div><div class="sec">${t('entLbl')}</div><span class="badge b-${(spot.entrance||'unknown').toLowerCase()}" style="display:inline-block;margin-top:4px">${t((spot.entrance||'unknown').toLowerCase())}</span><div class="sec">${t('worth_it')}</div><span style="${wStyle}">${spot.worth_it?'✓ '+t('worth_it'):'✗ '+t('worth_it')}</span><div class="sec">${t('hazLbl')}</div><div class="fwrap">${hazKeys.map(k=>`<span class="fp ${spot[k]?'on':'off'}">${t(k)}</span>`).join('')}</div>${photos.length?`<div class="sec">${t('phLbl')}</div><div class="pgrid">${photos.map(u=>`<img src="${u}" loading="lazy" onclick="openLB('${u}')" alt="Photo">`).join('')}</div>`:''}<div class="dacts">${userRole !== 'viewer' ? `<button class="abt" onclick="showAdd('${spot.id}')">${t('edit')}</button>` : ''}</div>`; }
 
   async function doDel(id){ if(!confirm(t('confirmDel')))return; const {error}=await sb.from('spots').delete().eq('id',id); if(error){toast(t('errDel'),'err');return}; toast(t('deleted'),'ok'); showListTab(); }
 
@@ -941,7 +971,7 @@
 
   async function upload(file){const ext=file.name.split('.').pop()||'jpg';const name=`${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;const {error}=await sb.storage.from('photos').upload(name,file,{contentType:file.type});if(error)throw error;return sb.storage.from('photos').getPublicUrl(name).data.publicUrl}
 
-  async function doSave(){const name=document.getElementById('f-name').value.trim(),desc=document.getElementById('f-desc').value.trim();const lat=parseFloat(document.getElementById('f-lat').value),lng=parseFloat(document.getElementById('f-lng').value);const entrance=document.querySelector('[data-grp="ent"].on')?.dataset.val||'Medium';if(!name){toast(t('errName'),'err');return};if(isNaN(lat)||isNaN(lng)){toast(t('errCoords'),'err');return};const flags={};document.querySelectorAll('[data-flag]').forEach(b=>{if(b.dataset.flag!=='visited')flags[b.dataset.flag]=b.classList.contains('on')});const visitedVal=document.querySelector('[data-flag="visited"]').classList.contains('on');const btn=document.getElementById('fsv');const progress=document.getElementById('upload-progress');btn.disabled=true;btn.textContent=t('upl');progress.style.display='block';progress.value=0;try{let thumbnailUrl=existingThumbUrl;if(thumbFile){thumbnailUrl=await upload(thumbFile)};const photoUrls=[...existingPhotoUrls];const totalFiles=photoFiles.length;for(let i=0;i<totalFiles;i++){const url=await upload(photoFiles[i]);photoUrls.push(url);progress.value=Math.round(((i+1)/totalFiles)*100);btn.textContent=`${t('upl')} ${i+1}/${totalFiles}`};btn.textContent=t('saving');progress.value=100;const payload={name,description:desc,latitude:lat,longitude:lng,entrance,thumbnail_url:thumbnailUrl,photos:photoUrls,visited:visitedVal,...flags};let error;if(editingId)({error}=await sb.from('spots').update(payload).eq('id',editingId));else({error}=await sb.from('spots').insert(payload));if(error)throw error;toast(t('saved'),'ok');showListTab()}catch(e){toast(t('errSave')+': '+e.message,'err');btn.disabled=false;btn.textContent=t('save')}finally{progress.style.display='none';progress.value=0;btn.disabled=false;if(btn.textContent!==t('save'))btn.textContent=t('save')}}
+  async function doSave(){if(userRole === 'viewer'){toast('Viewer mode is read-only','err');return;}const name=document.getElementById('f-name').value.trim(),desc=document.getElementById('f-desc').value.trim();const lat=parseFloat(document.getElementById('f-lat').value),lng=parseFloat(document.getElementById('f-lng').value);const entrance=document.querySelector('[data-grp="ent"].on')?.dataset.val||'Medium';if(!name){toast(t('errName'),'err');return};if(isNaN(lat)||isNaN(lng)){toast(t('errCoords'),'err');return};const flags={};document.querySelectorAll('[data-flag]').forEach(b=>{if(b.dataset.flag!=='visited')flags[b.dataset.flag]=b.classList.contains('on')});const visitedVal=document.querySelector('[data-flag="visited"]').classList.contains('on');const btn=document.getElementById('fsv');const progress=document.getElementById('upload-progress');btn.disabled=true;btn.textContent=t('upl');progress.style.display='block';progress.value=0;try{let thumbnailUrl=existingThumbUrl;if(thumbFile){thumbnailUrl=await upload(thumbFile)};const photoUrls=[...existingPhotoUrls];const totalFiles=photoFiles.length;for(let i=0;i<totalFiles;i++){const url=await upload(photoFiles[i]);photoUrls.push(url);progress.value=Math.round(((i+1)/totalFiles)*100);btn.textContent=`${t('upl')} ${i+1}/${totalFiles}`};btn.textContent=t('saving');progress.value=100;const payload={name,description:desc,latitude:lat,longitude:lng,entrance,thumbnail_url:thumbnailUrl,photos:photoUrls,visited:visitedVal,...flags};let error;if(editingId)({error}=await sb.from('spots').update(payload).eq('id',editingId));else({error}=await sb.from('spots').insert(payload));if(error)throw error;toast(t('saved'),'ok');showListTab()}catch(e){toast(t('errSave')+': '+e.message,'err');btn.disabled=false;btn.textContent=t('save')}finally{progress.style.display='none';progress.value=0;btn.disabled=false;if(btn.textContent!==t('save'))btn.textContent=t('save')}}
 
   function openLB(url){document.getElementById('lb-img').src=url;document.getElementById('lb').classList.add('open');document.getElementById('lb').setAttribute('aria-hidden','false')}
   function closeLB(){document.getElementById('lb').classList.remove('open');document.getElementById('lb').setAttribute('aria-hidden','true');document.getElementById('lb-img').src=''}
@@ -949,6 +979,7 @@
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('lb').classList.contains('open'))closeLB()})
 
   function toast(msg,type=''){const el=document.getElementById('toast');el.textContent=msg;el.className='toast '+type+' show';el.setAttribute('role',type==='err'?'alert':'status');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),3000)}
+  function copyCoords(lat,lng){const txt=`${lat}, ${lng}`; navigator.clipboard.writeText(txt).then(()=>toast(t('copied'),'ok')).catch(()=>{const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast(t('copied'),'ok')});}
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
   // ---------- UTM to Lat/Lng (WGS84) ----------
@@ -1061,6 +1092,7 @@
   window.t = t;
   window.esc = esc;
   window.toast = toast;
+  window.copyCoords = copyCoords;
   window.openLB = openLB;
   window.closeLB = closeLB;
   window.showListTab = showListTab;
